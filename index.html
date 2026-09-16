@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test Scanner</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  body { font-family: sans-serif; text-align: center; margin: 0; padding: 10px; background: #f4f4f4; }
+  #reader { width: 100%; max-width: 500px; margin: 0 auto; }
+  #resultado {
+    margin-top: 15px;
+    font-size: 28px;
+    font-weight: bold;
+    color: #1a7a1a;
+    min-height: 40px;
+    word-break: break-all;
+  }
+  #historial {
+    margin-top: 20px;
+    text-align: left;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+    background: white;
+    border-radius: 8px;
+    padding: 10px;
+  }
+  #historial div { padding: 4px 0; border-bottom: 1px solid #eee; font-size: 14px; }
+  button { margin-top: 10px; padding: 8px 16px; font-size: 16px; }
+</style>
+</head>
+<body>
+  <h2>Prueba de escaneo de código de barras</h2>
+  <div id="reader"></div>
+  <div id="resultado">Esperando escaneo...</div>
+  <button onclick="limpiar()">Limpiar historial</button>
+  <div id="historial"></div>
+
+<script>
+  const historialDiv = document.getElementById('historial');
+  const resultadoDiv = document.getElementById('resultado');
+  let ultimo = null;
+  let ultimoTiempo = 0;
+
+  function onScanSuccess(decodedText, decodedResult) {
+    const ahora = Date.now();
+    // evita duplicados inmediatos del mismo código
+    if (decodedText === ultimo && (ahora - ultimoTiempo) < 2000) return;
+    ultimo = decodedText;
+    ultimoTiempo = ahora;
+
+    resultadoDiv.textContent = decodedText;
+    const formato = decodedResult?.result?.format?.formatName || 'desconocido';
+    const linea = document.createElement('div');
+    const hora = new Date().toLocaleTimeString();
+    linea.textContent = `${hora} — ${decodedText} (${formato})`;
+    historialDiv.prepend(linea);
+
+    if (navigator.vibrate) navigator.vibrate(100);
+  }
+
+  function limpiar() {
+    historialDiv.innerHTML = '';
+    resultadoDiv.textContent = 'Esperando escaneo...';
+  }
+
+  const html5QrCode = new Html5Qrcode("reader", { formatsToSupport: [
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.UPC_A,
+      Html5QrcodeSupportedFormats.UPC_E,
+      Html5QrcodeSupportedFormats.QR_CODE
+    ], verbose: false });
+
+  Html5Qrcode.getCameras().then(cameras => {
+    if (cameras && cameras.length) {
+      // intenta usar la cámara trasera
+      const camaraTrasera = cameras.find(c => /back|rear|trasera/i.test(c.label)) || cameras[cameras.length - 1];
+      html5QrCode.start(
+        camaraTrasera.id,
+        { fps: 10, qrbox: { width: 280, height: 150 } },
+        onScanSuccess
+      ).catch(err => {
+        resultadoDiv.textContent = "Error al iniciar cámara: " + err;
+      });
+    } else {
+      resultadoDiv.textContent = "No se encontraron cámaras";
+    }
+  }).catch(err => {
+    resultadoDiv.textContent = "Sin permiso de cámara: " + err;
+  });
+</script>
+</body>
+</html>
