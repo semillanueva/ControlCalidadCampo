@@ -3,95 +3,3600 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Test Scanner</title>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<title>Control de Calidad - Armado de Viveros y Ensayos (conectado a BMS)</title>
 <style>
-  body { font-family: sans-serif; text-align: center; margin: 0; padding: 10px; background: #f4f4f4; }
-  #reader { width: 100%; max-width: 500px; margin: 0 auto; }
-  #resultado {
-    margin-top: 15px;
-    font-size: 28px;
-    font-weight: bold;
-    color: #1a7a1a;
-    min-height: 40px;
-    word-break: break-all;
-  }
-  #historial {
-    margin-top: 20px;
-    text-align: left;
-    max-width: 500px;
-    margin-left: auto;
-    margin-right: auto;
-    background: white;
-    border-radius: 8px;
-    padding: 10px;
-  }
-  #historial div { padding: 4px 0; border-bottom: 1px solid #eee; font-size: 14px; }
-  button { margin-top: 10px; padding: 8px 16px; font-size: 16px; }
+  :root { --bg:#f4f6f8; --card:#fff; --accent:#1f6f43; --line:#dfe3e8;
+          --ok:#137333; --okbg:#e6f4ea; --bad:#b00020; --badbg:#fce8e6; --amber:#9a6700;
+          --amberbg:#fff4e0; --gray:#5f6368; --graybg:#eef0f2; }
+  * { box-sizing:border-box; }
+  body { font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); margin:0; color:#1a1a1a; }
+  .container { max-width:1100px; margin:0 auto; padding:18px; }
+  h1 { color:var(--accent); margin:.2em 0; font-size:1.5rem; }
+  h2 { margin:1.1em 0 .4em; font-size:1.05rem; border-bottom:2px solid var(--line); padding-bottom:4px; }
+
+  .conn-card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+  .conn-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:8px; }
+  .conn-grid label { font-size:.78rem; font-weight:600; color:#444; display:block; margin-bottom:3px; }
+  .conn-grid input { width:100%; padding:7px 8px; border:1px solid var(--line); border-radius:6px; font-size:.85rem; }
+  .conn-status { font-size:.85rem; font-family:ui-monospace,Consolas,monospace; }
+  .conn-status.ok { color:var(--ok); }
+  .conn-status.bad { color:var(--bad); }
+
+  .loaders { display:flex; gap:18px; flex-wrap:wrap; margin:10px 0 6px; }
+  .loaders > div { flex:1; min-width:320px; background:var(--card); border:1px solid var(--line);
+                   border-radius:8px; padding:12px; }
+  .loaders label { font-weight:600; display:block; margin-bottom:6px; font-size:.9rem; }
+  .loaders .sub-field { margin-bottom:8px; }
+  .loaders .sub-field input { width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-size:.85rem; }
+  .file-status { font-size:.82rem; margin-top:6px; min-height:1em; }
+  .btn-load { background:var(--accent); color:#fff; border:none; border-radius:6px; padding:7px 14px;
+              font-size:.85rem; cursor:pointer; margin-right:6px; }
+  .btn-load:hover { background:#175a37; }
+  .btn-load:disabled { background:#9db8ab; cursor:not-allowed; }
+  .btn-secondary { background:none; border:1px solid var(--line); border-radius:6px; padding:7px 14px;
+                   font-size:.85rem; cursor:pointer; }
+  .btn-secondary:hover { background:#eef1f3; }
+
+  .scan-row { display:flex; gap:18px; flex-wrap:wrap; margin-top:8px; }
+  .scan-box { flex:1; min-width:280px; background:var(--card); border:2px solid var(--accent);
+              border-radius:10px; padding:14px; }
+  .scan-box label { font-weight:700; color:var(--accent); display:block; margin-bottom:6px; }
+  .scan-box input { width:100%; padding:13px 14px; font-size:1.25rem; border:1px solid var(--line);
+                    border-radius:8px; outline:none; font-family:ui-monospace,Consolas,monospace; }
+  .scan-box .sub { font-size:.8rem; color:#555; margin-top:6px; min-height:1em; }
+  .scan-box.locked { border-color:#137333; background:#f3fbf6; }
+  .lock-tag { background:#137333; color:#fff; font-size:.7rem; padding:2px 8px; border-radius:10px; margin-left:6px; vertical-align:middle; }
+  .scan-box input:disabled { background:#eee; color:#999; }
+  .verdict { margin:16px 0; border-radius:12px; padding:20px; text-align:center;
+             font-size:1.6rem; font-weight:800; letter-spacing:.5px; border:3px solid var(--line);
+             background:#fff; color:#888; }
+  .verdict.true  { background:var(--okbg);  border-color:var(--ok);  color:var(--ok); }
+  .verdict.false { background:var(--badbg); border-color:var(--bad); color:var(--bad); }
+  .verdict small { display:block; font-size:.85rem; font-weight:600; margin-top:6px; letter-spacing:0; }
+  .panel { display:flex; gap:18px; flex-wrap:wrap; }
+  .panel > div { flex:1; min-width:280px; background:var(--card); border:1px solid var(--line);
+                 border-radius:8px; padding:12px; }
+  .panel h3 { margin:0 0 8px; font-size:.95rem; color:var(--accent); }
+  .kv { display:grid; grid-template-columns:auto 1fr; gap:4px 12px; font-size:.95rem; }
+  .kv b { color:#444; font-weight:600; }
+  .mono { font-family:ui-monospace,Consolas,monospace; }
+  .hl-ok { color:var(--ok); font-weight:700; }
+  .hl-bad { color:var(--bad); font-weight:700; }
+  table { width:100%; border-collapse:collapse; background:var(--card);
+          box-shadow:0 1px 3px rgba(0,0,0,.08); border-radius:8px; overflow:hidden; }
+  th,td { padding:8px 10px; text-align:left; border-bottom:1px solid var(--line); font-size:.88rem; }
+  th { background:var(--accent); color:#fff; }
+  tbody tr:nth-child(even){ background:#fafbfc; }
+  .badge-true  { background:var(--okbg);  color:var(--ok);  padding:2px 8px; border-radius:10px; font-weight:700; }
+  .badge-false { background:var(--badbg); color:var(--bad); padding:2px 8px; border-radius:10px; font-weight:700; }
+  .toolbar { display:flex; gap:10px; align-items:center; margin:.4em 0; flex-wrap:wrap; }
+  button.act { font-size:.82rem; background:none; border:1px solid var(--line); border-radius:6px;
+               padding:5px 12px; cursor:pointer; }
+  button.act:hover { background:#eef1f3; }
+  .counts { font-size:.85rem; color:#444; }
+
+  /* Debug / diagnostics */
+  .debug-toggle { font-size:.78rem; color:#555; cursor:pointer; user-select:none; margin-top:6px; }
+  .debug-box { display:none; background:#1a1a17; border-radius:8px; padding:10px 12px; margin-top:8px;
+               font-family:ui-monospace,Consolas,monospace; font-size:11px; color:#74c69d;
+               max-height:220px; overflow-y:auto; white-space:pre-wrap; line-height:1.6; }
+  .spinner-inline { display:inline-block; width:12px; height:12px; border:2px solid #dfe3e8;
+                    border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite;
+                    vertical-align:middle; margin-right:6px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  .prog-tags { display:flex; gap:6px; flex-wrap:wrap; margin:6px 0; }
+  .prog-tag { font-size:.75rem; padding:3px 9px; border-radius:12px; border:1px solid var(--line);
+              cursor:pointer; user-select:none; background:#fff; color:#444; }
+  .prog-tag.on { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  .prog-tag.unknown { opacity:.55; }
+
+  /* ===== Pestañas (Escaneo / Validación de listado) ===== */
+  .tab-bar { display:flex; gap:8px; margin:16px 0 10px; border-bottom:2px solid var(--line); }
+  .tab-btn { background:none; border:none; border-bottom:3px solid transparent; padding:9px 16px;
+             font-size:.92rem; font-weight:700; color:#666; cursor:pointer; margin-bottom:-2px; }
+  .tab-btn:hover { color:var(--accent); }
+  .tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+
+  /* ===== Validación de listado crudo ===== */
+  .upload-row { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .map-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:12px; }
+  .map-grid label { font-size:.78rem; font-weight:600; color:#444; display:block; margin-bottom:3px; }
+  .map-grid select { width:100%; padding:7px 8px; border:1px solid var(--line); border-radius:6px; font-size:.85rem; background:#fff; }
+
+  .summary { display:flex; gap:12px; flex-wrap:wrap; margin:10px 0; }
+  .summary .box { flex:1; min-width:120px; border-radius:8px; padding:10px 12px; text-align:center; }
+  .summary .box .n { font-size:1.4rem; font-weight:700; display:block; }
+  .summary .box .label { font-size:.72rem; text-transform:uppercase; letter-spacing:.03em; }
+  .summary .box.total { background:#e8eaed; color:#3c4043; }
+  .summary .box.ok { background:var(--okbg); color:var(--ok); }
+  .summary .box.warn { background:var(--amberbg); color:var(--amber); }
+  .summary .box.bad { background:var(--badbg); color:var(--bad); }
+
+  .table-wrap { max-height:520px; overflow:auto; border:1px solid var(--line); border-radius:8px; }
+  tr.row-ok td { background:var(--okbg); }
+  tr.row-warn td { background:var(--amberbg); }
+  tr.row-bad td { background:var(--badbg); }
+  tr.row-gray td { background:var(--graybg); color:#666; }
+  .tag { display:inline-block; font-size:.72rem; font-weight:700; padding:2px 7px; border-radius:10px; color:#fff; }
+  .tag.ok { background:var(--ok); }
+  .tag.warn { background:var(--amber); }
+  .tag.bad { background:var(--bad); }
+  .tag.gray { background:var(--gray); }
+
+  /* ===== Verificación Campo ===== */
+  .cell-campo { text-align:center; font-size:.72rem; line-height:1.5; border:1px solid var(--line); white-space:nowrap; }
+  .cell-campo.pendiente { background:#eef0f2; }
+  .cell-campo.ok { background:var(--okbg); }
+  .cell-campo.alerta { background:var(--badbg); }
 </style>
 </head>
 <body>
-  <h2>Prueba de escaneo de código de barras</h2>
-  <div id="reader"></div>
-  <div id="resultado">Esperando escaneo...</div>
-  <button onclick="limpiar()">Limpiar historial</button>
-  <div id="historial"></div>
+<div class="container">
+  <h1>Control de Calidad &mdash; Armado de Viveros y Ensayos</h1>
+  <div style="font-size:.85rem;color:#666;margin-bottom:10px">Conectado directamente a BMS &mdash; sin archivos Excel</div>
 
+  <!-- CONEXION BMS -->
+  <div class="conn-card">
+    <label style="font-weight:700;color:var(--accent);display:block;margin-bottom:8px">Conexión a BMS</label>
+    <div class="conn-grid">
+      <div><label>URL de BMS</label><input type="text" id="bmsUrl" value="https://semillanueva.bmspro.io"></div>
+      <div><label>Crop</label><input type="text" id="bmsCrop" value="maize"></div>
+      <div><label>Usuario</label><input type="text" id="bmsUser"></div>
+      <div><label>Contraseña</label><input type="password" id="bmsPass"></div>
+    </div>
+    <div class="toolbar">
+      <button class="btn-load" id="btnConectar">Conectar a BMS</button>
+      <span class="conn-status" id="connStatus">Sin conexión</span>
+    </div>
+  </div>
+
+  <div class="loaders">
+    <div>
+      <label>Catálogo de LOTES (Origen) &mdash; desde BMS</label>
+      <div class="toolbar">
+        <button class="btn-load" id="btnCargarLotes" onclick="cargarLotesBMS()" disabled>Cargar lotes desde BMS</button>
+        <button class="btn-load" id="btnDescargarInventario" onclick="descargarInventarioBMS()" disabled>Descargar inventario (Excel)</button>
+      </div>
+      <div class="file-status" id="statusLotes">Conéctate a BMS primero.</div>
+    </div>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tabBtnValidacion" onclick="showTab('validacion')">Cargar Listado Oficial</button>
+    <button class="tab-btn" id="tabBtnGenbank" onclick="showTab('genbank')">Genbank &mdash; Verificación</button>
+    <button class="tab-btn" id="tabBtnReporte" onclick="showTab('reporte')">Reporte Genbank</button>
+    <button class="tab-btn" id="tabBtnEscaneo" onclick="showTab('escaneo')">Origen vs Experimento</button>
+    <button class="tab-btn" id="tabBtnCampo" onclick="showTab('campo')">Verificación Mapa Campo</button>
+    <button class="tab-btn" id="tabBtnPaquete" onclick="showTab('paquete')">Verificación Envío CE&rarr;LAB</button>
+    <button class="tab-btn" id="tabBtnLote" onclick="showTab('lote')">Almacenamiento LOT_UID x GID</button>
+  </div>
+
+  <div id="tabEscaneo" style="display:none">
+  <div class="loaders">
+    <div>
+      <label>Vivero (Study) &mdash; OBS_UNIT_ID desde BMS</label>
+      <div class="sub-field">
+        <input type="text" id="studyQuery" placeholder="Nombre del vivero (ej. 01 SLFAFCIM_2026B) o studyDbId numérico" disabled>
+      </div>
+      <div style="font-size:.78rem;color:#444;margin-bottom:4px">Buscar en programa(s):</div>
+      <div class="prog-tags" id="progTags">
+        <span class="prog-tag unknown" id="progTagStatus">(conéctate a BMS para detectar programas)</span>
+      </div>
+      <div class="toolbar">
+        <button class="btn-load" id="btnBuscarVivero" onclick="buscarVivero()" disabled>Buscar vivero</button>
+        <button class="btn-load" id="btnCargarVivero" onclick="cargarViveroBMS()" disabled>Cargar OBS UNIT del vivero</button>
+      </div>
+      <div class="file-status" id="statusVivero">Conéctate a BMS primero.</div>
+    </div>
+  </div>
+
+  <h2>Escaneo</h2>
+  <div class="scan-row">
+    <div class="scan-box" id="boxOrigen">
+      <label>LOT UID &mdash; Material de ORIGEN <span id="lockTag" class="lock-tag" style="display:none">FIJADO</span></label>
+      <input type="text" id="scanOrigen" placeholder="Cargue el catálogo de lotes primero" autocomplete="off" autofocus disabled>
+      <div class="sub" id="subOrigen"></div>
+      <button class="act" id="btnLiberar" style="display:none; margin-top:8px;">Liberar origen / escanear otro</button>
+    </div>
+    <div class="scan-box">
+      <label>OBS UNIT ID &mdash; NUEVO VIVERO</label>
+      <input type="text" id="scanVivero" placeholder="Primero fije un origen" autocomplete="off" disabled>
+      <div class="sub" id="subVivero"></div>
+    </div>
+  </div>
+
+  <div class="verdict" id="verdict">Escanee el LOT UID de origen para comenzar</div>
+
+  <div class="panel">
+    <div>
+      <h3>Material de Origen</h3>
+      <div class="kv" id="kvOrigen"><b>LOT UID</b><span>&mdash;</span><b>GID</b><span>&mdash;</span><b>DESIGNATION</b><span>&mdash;</span></div>
+    </div>
+    <div>
+      <h3>Nuevo Vivero</h3>
+      <div class="kv" id="kvVivero"><b>OBS UNIT ID</b><span>&mdash;</span><b>GID</b><span>&mdash;</span><b>DESIGNATION</b><span>&mdash;</span><b>ENTRY</b><span>&mdash;</span><b>PLOT_CODE</b><span>&mdash;</span></div>
+    </div>
+  </div>
+
+  <h2>Historial de verificaciones</h2>
+  <div class="toolbar">
+    <span class="counts" id="counts">OK: 0 &nbsp;|&nbsp; Fallos: 0 &nbsp;|&nbsp; Total: 0</span>
+    <button class="act" id="btnExport">Exportar historial (CSV)</button>
+    <button class="act" id="btnClear">Limpiar historial</button>
+  </div>
+  <table id="histTable">
+    <thead><tr>
+      <th>Hora</th><th>LOT UID origen</th><th>OBS UNIT ID</th>
+      <th>GID origen</th><th>GID vivero</th>
+      <th>DESIG origen</th><th>DESIG vivero</th>
+      <th>ENTRY</th><th>PLOT_CODE</th><th>Resultado</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+  </div> <!-- /tabEscaneo -->
+
+    <div id="tabValidacion">
+    <p style="font-size:.85rem;color:#666;margin:0 0 10px">Sube el listado crudo (con GID y/o Preferred Name) y valida contra el catálogo de lotes ya cargado arriba &mdash; no vuelve a consultar BMS, usa el mismo catálogo en memoria.</p>
+
+    <div class="conn-card">
+      <div class="upload-row">
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" disabled>
+        <span class="file-status" id="fileStatus">Carga el catálogo de lotes primero.</span>
+      </div>
+      <div id="sheetPickerWrap" style="display:none; margin-top:10px;">
+        <label style="font-size:.78rem; font-weight:600;">Hoja:</label>
+        <select id="sheetPicker" style="padding:6px; border-radius:6px; border:1px solid var(--line);"></select>
+      </div>
+      <div class="map-grid" id="mapGrid" style="display:none;">
+        <div><label>Columna GID</label><select id="colGid"></select></div>
+        <div><label>Columna Nombre / Preferred Name</label><select id="colName"></select></div>
+        <div><label>Columna Orden (opcional)</label><select id="colOrden"></select></div>
+        <div><label>Columna Hembra/Macho (opcional)</label><select id="colRol"></select></div>
+        <div><label>Columna Peso (opcional)</label><select id="colPeso"></select></div>
+        <div><label>Columna Ubicación (opcional)</label><select id="colUbicacion"></select></div>
+      </div>
+      <div class="toolbar">
+        <button class="btn-load" id="btnProcesar" disabled>Validar contra BMS</button>
+        <span class="file-status" id="procesarStatus"></span>
+      </div>
+    </div>
+
+    <h2>Resultado de la validación</h2>
+    <div class="summary" id="summary" style="display:none;">
+      <div class="box total"><span class="n" id="sTotal">0</span><span class="label">Filas</span></div>
+      <div class="box ok"><span class="n" id="sOk">0</span><span class="label">OK</span></div>
+      <div class="box warn"><span class="n" id="sWarn">0</span><span class="label">Advertencias</span></div>
+      <div class="box bad"><span class="n" id="sBad">0</span><span class="label">No encontrados</span></div>
+    </div>
+    <div class="toolbar">
+      <button class="act" id="btnExportValidacion" disabled>Exportar resultado (CSV)</button>
+    </div>
+    <div class="table-wrap">
+        <table id="resultTable">
+        <thead>
+          <tr>
+            <th>Orden</th><th>Rol</th><th>GID (archivo)</th><th>Nombre (archivo)</th>
+            <th>GID en BMS</th><th>Designation en BMS</th><th>Disponible</th><th>Ubicación</th><th>Año</th><th>Estado</th><th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div> <!-- /tabValidacion -->
+
+  <div id="tabGenbank" style="display:none">
+  <p style="font-size:.85rem;color:#666;margin:0 0 10px">
+    Primero carga el catálogo de lotes ("Cargar lotos desde BMS, arriba Aquí escaneas el sticker del sobre y se verifica
+    contra el INVENTARIO de BMS (no contra los estudios), tomas la foto de evidencia")
+  </p>
+
+  <div class="scan-row">
+    <div class="scan-box" style="max-width:420px">
+      <label>Escanear sticker (LOT UID)</label>
+      <input type="text" id="scanGenbank" placeholder="Carga el cátalogo de lotes primero" autocomplete="off" disabled>
+      <div class="sub" id="subGenbank"></div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn-load" id="btnIniciarCamaraGenbank" onclick="iniciarEscaneoGenbank()">Escanear con cámara</button>
+    <button class="btn-secondary" id="btnDetenerCamaraGenbank" onclick="detenerEscaneoGenbank(true)" style="display:none">Detener cámara</button>
+  </div>
+  <div id="readerGenbank" style="max-width:340px;margin-top:6px;"></div>
+
+  <div class="panel">
+    <div>
+      <h3>Material escaneado</h3>
+      <div class="kv" id="kvGenbank">
+        <b>LOT UID</b><span>&mdash;</span>
+        <b>GID</b><span>&mdash;</span>
+        <b>DESIGNATION</b><span>&mdash;</span>
+        <b>PLOT_IN_TRIAL</b><span>&mdash;</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="fotoGenbankWrap" style="display:none; margin-top:10px;">
+    <button class="btn-load" onclick="tomarFotoGenbank()">Tomar foto de evidencia</button>
+    <div id="videoFotoGenbankWrap" style="display:none; margin-top:8px;">
+      <video id="videoFotoGenbank" autoplay playsinline style="max-width:320px;border-radius:8px;display:block;"></video>
+      <button class="btn-load" onclick="capturarFotoGenbank()" style="margin-top:8px;">Capturar</button>
+    </div>
+    <canvas id="canvasFotoGenbank" style="display:none;"></canvas>
+  </div>
+
+  <h2>Registro (solo esta sesión)</h2>
+  <div class="toolbar">
+    <button class="act" onclick="limpiarHistorialGenbank()">Limpiar</button>
+  </div>
+  <table id="histGenbankTable">
+    <thead><tr>
+      <th>Hora</th><th>LOT UID</th><th>GID</th><th>DESIGNATION</th><th>Disponible</th><th>Foto</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+</div> <!-- /tabGenbank -->
+<div id ="tabReporte" style="display: none;">
+  <p style="font-size:.85rem;color:#666;margin:0 0 10px">
+    Cruza lo que EK solicitó (ya validado contra BMS) contra lo que AR ya escaneó y confirmó en Genbank &mdash; Verificación".
+    Ambas se comparan contra BMS por separado &mdash; este reporte solo junta los dos resultados para ver de un vistado que falta.
+  </p>
+  <div class="toolbar">
+    <button class="btn-load" onclick="generarReporteEKGenbank()">Generar Reporte</button>
+    <span class="file-status" id="statusReporte"></span>
+  </div>
+  <div class="summary" id="summaryReporte" style="display:none;">
+    <div class="box total"><span class="n" id="sTotalReporte">0</span><span class="label">GID's únicos</span></div>
+    <div class="box ok"><span class="n" id="sEscaneadoReporte">0</span><span class="label">Escaneado en Genbank</span></div>
+    <div class="box bad"><span class="n" id="sPendienteReporte">0</span><span class="label">Pendiente</span></div>
+  </div>
+  <div class="toolbar">
+    <button class="act" id="btnExportReporte" onclick="exportarReporte()" disabled>Exportar reporte (CSV)</button>
+  </div>
+  <div class="table-wrap">
+    <table id="reporteTable">
+      <thead><tr>
+        <th>Orden</th><th>GID</th><th>Nombre BMS</th><th>Disponible</th><th>Ubicación (BMS)</th><th>Peso (archivo EK)</th><th>Ubicación (archivo EK)</th><th>Estado Validación EK</th><th>Escaneado en Genbank</th><th>Última hora</th><th>Foto</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div> <!--/tabReporte-->
+</div> <!--/tabReporte-->
+
+<div id="tabCampo" style="display:none">
+  <p style="font-size:.85rem;color:#666;margin:0 0 10px">
+    Verificación de seguridad en laboratorio: sube el mapa de siembra (Excel) y escanea los sobres en el mismo orden del mapa para confirmar que coincide Plot/Entry(/GID) y que no falta ni se saltó ningún sobre. El mapa sale del Excel; el OBS_UNIT_ID de cada Plot se resuelve conectando a BMS por localidad.
+  </p>
+
+  <div class="conn-card">
+    <div class="upload-row">
+      <input type="file" id="fileInputCampo" accept=".xlsx,.xls">
+      <span class="file-status" id="fileStatusCampo">Sube el archivo del mapa (Backcross/Self, Finca, Registro, Screening o Parent Testing).</span>
+    </div>
+    <div id="localidadWrapCampo" style="display:none; margin-top:10px;">
+      <label style="font-size:.78rem; font-weight:600;">Localidad / Hoja:</label>
+      <select id="localidadPickerCampo" style="padding:6px; border-radius:6px; border:1px solid var(--line);"></select>
+      <button class="btn-load" id="btnCargarLocalidadCampo" style="margin-left:8px;">Cargar mapa de esta localidad</button>
+    </div>
+    <div class="debug-toggle" onclick="toggleDebug('debugCampo')">▸ Ver diagnóstico técnico (BMS / OBS_UNIT_ID)</div>
+    <div class="debug-box" id="debugCampo"></div>
+  </div>
+
+  <div id="infoMapaCampo" style="display:none; margin:10px 0;">
+    <div class="kv">
+      <b>Estudio</b><span id="infoEstudioCampo">&mdash;</span>
+      <b>Localidad</b><span id="infoLocalidadCampo">&mdash;</span>
+      <b>Tipo</b><span id="infoTipoCampo">&mdash;</span>
+      <b>Total de Plots</b><span id="infoTotalCampo">&mdash;</span>
+    </div>
+  </div>
+
+  <div class="scan-row">
+    <div class="scan-box" style="max-width:420px">
+      <label>Escanear sobre (OBS UNIT ID)</label>
+      <input type="text" id="scanCampo" placeholder="Carga un mapa primero" autocomplete="off" disabled>
+      <div class="sub" id="subCampo"></div>
+    </div>
+  </div>
+
+  <div class="verdict" id="verdictCampo">Cargue un mapa para comenzar la verificación</div>
+
+  <div class="summary" id="summaryCampo" style="display:none;">
+    <div class="box total"><span class="n" id="sTotalCampo">0</span><span class="label">Total Plots</span></div>
+    <div class="box ok"><span class="n" id="sOkCampo">0</span><span class="label">OK</span></div>
+    <div class="box warn"><span class="n" id="sPendCampo">0</span><span class="label">Pendientes</span></div>
+    <div class="box bad"><span class="n" id="sAlertCampo">0</span><span class="label">Alertas</span></div>
+  </div>
+
+  <div class="toolbar">
+    <button class="act" id="btnReiniciarCampo">Reiniciar verificación</button>
+    <button class="act" id="btnExportCampo">Exportar historial (CSV)</button>
+  </div>
+
+  <h2>Mapa</h2>
+  <div class="table-wrap" id="gridWrapCampo"><span style="color:#888;font-size:.85rem;">El mapa aparecerá aquí cuando lo cargues.</span></div>
+
+  <h2>Historial de escaneos</h2>
+  <div class="table-wrap">
+    <table id="histCampoTable">
+      <thead><tr><th>Hora</th><th>Código escaneado</th><th>Plot</th><th>Entry</th><th>GID</th><th>Rol</th><th>Rango/Faja</th><th>Resultado</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div> <!-- /tabCampo -->
+
+<div id="tabPaquete" style="display:none">
+  <p style="font-size:.85rem;color:#666;margin:0 0 10px">
+    Verifica la recepción de un envío de Centro Experimental a Laboratorio: sube el Excel "comprobante" (Packing List) que
+    envía CE con la lista de OBS_UNIT_ID, y luego escanea la etiqueta de cada sobre físico para confirmar que coincide.
+  </p>
+
+  <div class="conn-card">
+    <div class="upload-row">
+      <input type="file" id="fileInputPaquete" accept=".xlsx,.xls">
+      <span class="file-status" id="fileStatusPaquete">Sube el Packing List (comprobante) recibido de CE.</span>
+    </div>
+  </div>
+
+  <div id="infoPaquete" style="display:none; margin:10px 0;">
+    <div class="kv">
+      <b>Experimento/Proyecto</b><span id="infoExperimentoPaquete">&mdash;</span>
+      <b>Fecha</b><span id="infoFechaPaquete">&mdash;</span>
+      <b>Muestras</b><span id="infoTotalPaquete">&mdash;</span>
+    </div>
+  </div>
+
+  <div class="scan-row">
+    <div class="scan-box" style="max-width:420px">
+      <label>Escanear etiqueta del sobre (OBS_UNIT_ID)</label>
+      <input type="text" id="scanPaquete" placeholder="Cargue el Packing List primero" autocomplete="off" disabled>
+      <div class="sub" id="subPaquete"></div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn-load" id="btnIniciarCamaraPaquete" onclick="iniciarEscaneoPaquete()" disabled>Escanear con cámara</button>
+    <button class="btn-secondary" id="btnDetenerCamaraPaquete" onclick="detenerEscaneoPaquete(true)" style="display:none">Detener cámara</button>
+  </div>
+  <div id="readerPaquete" style="max-width:340px;margin-top:6px;"></div>
+
+  <div class="verdict" id="verdictPaquete">Cargue el Packing List para comenzar</div>
+
+  <div class="summary" id="summaryPaquete" style="display:none;">
+    <div class="box total"><span class="n" id="sTotalPaquete">0</span><span class="label">Total en archivo</span></div>
+    <div class="box ok"><span class="n" id="sOkPaquete">0</span><span class="label">Recibidos</span></div>
+    <div class="box warn"><span class="n" id="sPendPaquete">0</span><span class="label">Pendientes</span></div>
+    <div class="box bad"><span class="n" id="sBadPaquete">0</span><span class="label">No están en el archivo</span></div>
+  </div>
+
+  <div class="toolbar">
+    <button class="act" id="btnReiniciarPaquete">Reiniciar verificación</button>
+    <button class="act" id="btnExportPaquete">Exportar reporte de recepción (CSV)</button>
+    <label style="font-size:.82rem;color:#444;display:flex;align-items:center;gap:5px;margin-left:auto;">
+      <input type="checkbox" id="chkSoloPendientesPaquete" onchange="aplicarFiltroPaquete()"> Mostrar solo pendientes
+    </label>
+  </div>
+
+  <h2>Listado del envío</h2>
+  <div class="table-wrap" id="tableWrapPaquete">
+    <table id="tablaPaqueteTable">
+      <thead><tr><th>No.</th><th>OBS_UNIT_ID</th><th>Planta</th><th>GID</th><th>Estado</th><th>Hora recibido</th></tr></thead>
+      <tbody><tr><td colspan="6" style="color:#888;">El listado aparecerá aquí cuando cargue el Packing List.</td></tr></tbody>
+    </table>
+  </div>
+
+  <h2>Historial de escaneos</h2>
+  <div class="table-wrap">
+    <table id="histPaqueteTable">
+      <thead><tr><th>Hora</th><th>Código escaneado</th><th>Planta</th><th>GID</th><th>Resultado</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div> <!-- /tabPaquete -->
+
+<div id="tabLote" style="display:none">
+  <p style="font-size:.85rem;color:#666;margin:0 0 10px">
+    El sobre de cosecha solo trae el GID impreso. Escanéalo aquí para buscar su LOT_UID en el catálogo de lotes de BMS
+    (el mismo que cargas arriba, "Cargar lotes desde BMS") y anótalo en el sobre. Estos GID de cosecha son únicos, así que
+    normalmente hay un solo lote por GID; si por alguna razón aparece más de uno, se muestran todos para que elijas.
+    El lote lo crea otra persona después de generar el GID, así que si un GID todavía no tiene lote la app te lo indica
+    por separado de un GID que de plano no existe en BMS.
+  </p>
+  <p style="font-size:.85rem;color:#666;margin:0 0 10px">
+    Segunda etiqueta (opcional): trae el OBS_UNIT_ID del padre/origen. La app ya saca el origen registrado del GID de la
+    Etiqueta 1 directamente desde BMS (sin necesidad de cargar ningún vivero), y compara ese OBS_UNIT_ID contra lo que
+    escanees en la Etiqueta 2.
+  </p>
+
+  <div class="scan-row">
+    <div class="scan-box" style="max-width:420px">
+      <label>Etiqueta 1 &mdash; GID de cosecha</label>
+      <input type="text" id="scanLote" placeholder="Carga el catálogo de lotes primero" autocomplete="off" disabled>
+      <div class="sub" id="subLote"></div>
+    </div>
+    <div class="scan-box" style="max-width:420px">
+      <label>Etiqueta 2 &mdash; OBS_UNIT_ID del padre</label>
+      <input type="text" id="scanEtiqueta2" placeholder="Primero escanee la Etiqueta 1 (GID)" autocomplete="off" disabled>
+      <div class="sub" id="subEtiqueta2"></div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn-load" id="btnIniciarCamaraLote" onclick="iniciarEscaneoLote()" disabled>Escanear con cámara</button>
+    <button class="btn-secondary" id="btnDetenerCamaraLote" onclick="detenerEscaneoLote(true)" style="display:none">Detener cámara</button>
+  </div>
+  <div id="readerLote" style="max-width:340px;margin-top:6px;"></div>
+
+  <div class="verdict" id="verdictLote">Cargue el catálogo de lotes (arriba) y escanee el primer sobre</div>
+
+  <div id="multiLoteWrap" style="display:none; margin:10px 0;">
+    <div class="panel"><div>
+      <h3>Este GID tiene varios lotes &mdash; elige cuál usar</h3>
+      <div id="multiLoteLista"></div>
+    </div></div>
+  </div>
+
+  <div id="origenEsperado" style="display:none; margin:10px 0;"></div>
+  <div class="verdict" id="verdictEtiqueta2" style="display:none"></div>
+
+  <div class="summary" id="summaryLote" style="display:none;">
+    <div class="box total"><span class="n" id="sTotalLote">0</span><span class="label">Escaneados</span></div>
+    <div class="box ok"><span class="n" id="sOkLote">0</span><span class="label">Resueltos</span></div>
+    <div class="box warn"><span class="n" id="sSinLoteLote">0</span><span class="label">Sin lote aún</span></div>
+    <div class="box warn"><span class="n" id="sMultiLote">0</span><span class="label">Con varios lotes</span></div>
+    <div class="box bad"><span class="n" id="sBadLote">0</span><span class="label">GID no encontrado</span></div>
+  </div>
+
+  <h2>Historial de asignaciones (esta sesión)</h2>
+  <div class="toolbar">
+    <button class="act" id="btnLimpiarLote">Limpiar historial</button>
+    <button class="act" id="btnExportLote">Exportar historial (CSV)</button>
+  </div>
+  <div class="table-wrap">
+    <table id="histLoteTable">
+      <thead><tr><th>Hora</th><th>GID escaneado</th><th>LOT_UID</th><th>Ubicación</th><th>Disponible</th><th>OBS Etiqueta 2</th><th>Resultado</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div> <!-- /tabLote -->
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
-  const historialDiv = document.getElementById('historial');
-  const resultadoDiv = document.getElementById('resultado');
-  let ultimo = null;
-  let ultimoTiempo = 0;
+/* =========================================================================
+   CONEXION A BMS
+   =========================================================================
+   PUNTO IMPORTANTE / SIN CONFIRMAR TODAVIA:
+   Se sabe (por pruebas previas contra este mismo BMS) que el endpoint de
+   login /bmsapi/brapi/v2/token SI funciona desde el navegador (CORS
+   habilitado) y entrega un Bearer token.
+   Lo que NO está confirmado es si ese mismo Bearer token sirve para los
+   endpoints nativos que usamos aquí (/crops/{crop}/lots/search,
+   /crops/{crop}/germplasm/search, etc.) o si BMS exige un token distinto
+   ("x-auth-token" de Workbench, obtenido de /authenticate o
+   /ibpworkbench/controller/auth/login). Por eso cada llamada a un endpoint
+   nativo se intenta primero con Bearer y, si falla con 401/403, se reintenta
+   con el token de Workbench. Todo queda registrado en los paneles de
+   diagnóstico para poder ajustar rápido si hace falta.
+   ========================================================================= */
 
-  function onScanSuccess(decodedText, decodedResult) {
-    const ahora = Date.now();
-    // evita duplicados inmediatos del mismo código
-    if (decodedText === ultimo && (ahora - ultimoTiempo) < 2000) return;
-    ultimo = decodedText;
-    ultimoTiempo = ahora;
+let bearerToken = '';
+let workbenchToken = '';
+let workbenchTried = false;
 
-    resultadoDiv.textContent = decodedText;
-    const formato = decodedResult?.result?.format?.formatName || 'desconocido';
-    const linea = document.createElement('div');
-    const hora = new Date().toLocaleTimeString();
-    linea.textContent = `${hora} — ${decodedText} (${formato})`;
-    historialDiv.prepend(linea);
+function cfg() {
+  return {
+    url: document.getElementById('bmsUrl').value.trim().replace(/\/$/,''),
+    crop: document.getElementById('bmsCrop').value.trim(),
+    user: document.getElementById('bmsUser').value.trim(),
+    pass: document.getElementById('bmsPass').value
+  };
+}
 
-    if (navigator.vibrate) navigator.vibrate(100);
-  }
+function dbg(boxId, msg) {
+  console.log('[' + boxId + ']', msg);
+  const el = document.getElementById(boxId);
+  if (!el) return;
+  el.style.display = 'block';
+  const t = new Date().toLocaleTimeString();
+  el.textContent += '[' + t + '] ' + msg + '\n';
+  el.scrollTop = el.scrollHeight;
+}
 
-  function limpiar() {
-    historialDiv.innerHTML = '';
-    resultadoDiv.textContent = 'Esperando escaneo...';
-  }
+function toggleDebug(id) {
+  const el = document.getElementById(id);
+  el.style.display = (el.style.display === 'block') ? 'none' : 'block';
+}
 
-  const html5QrCode = new Html5Qrcode("reader", { formatsToSupport: [
-      Html5QrcodeSupportedFormats.CODE_128,
-      Html5QrcodeSupportedFormats.CODE_39,
-      Html5QrcodeSupportedFormats.EAN_13,
-      Html5QrcodeSupportedFormats.EAN_8,
-      Html5QrcodeSupportedFormats.UPC_A,
-      Html5QrcodeSupportedFormats.UPC_E,
-      Html5QrcodeSupportedFormats.QR_CODE
-    ], verbose: false });
-
-  Html5Qrcode.getCameras().then(cameras => {
-    if (cameras && cameras.length) {
-      // intenta usar la cámara trasera
-      const camaraTrasera = cameras.find(c => /back|rear|trasera/i.test(c.label)) || cameras[cameras.length - 1];
-      html5QrCode.start(
-        camaraTrasera.id,
-        { fps: 10, qrbox: { width: 280, height: 150 } },
-        onScanSuccess
-      ).catch(err => {
-        resultadoDiv.textContent = "Error al iniciar cámara: " + err;
-      });
-    } else {
-      resultadoDiv.textContent = "No se encontraron cámaras";
-    }
-  }).catch(err => {
-    resultadoDiv.textContent = "Sin permiso de cámara: " + err;
+async function getBearerToken() {
+  const { url, user, pass } = cfg();
+  const r = await fetch(url + '/bmsapi/brapi/v2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({ username: user, password: pass, grant_type: 'password' })
   });
+  dbg('debugConn', 'POST /bmsapi/brapi/v2/token -> HTTP ' + r.status);
+  if (!r.ok) throw new Error('Login falló: HTTP ' + r.status);
+  const d = await r.json();
+  const t = d.access_token || d.token || d.accessToken;
+  if (!t) throw new Error('La respuesta de login no trajo token');
+  return t;
+}
+
+// Intenta varios endpoints de login "workbench" para obtener el x-auth-token
+// nativo, solo si el Bearer normal falla en un endpoint /crops/... .
+async function getWorkbenchToken() {
+  if (workbenchToken) return workbenchToken;
+  if (workbenchTried) return '';
+  workbenchTried = true;
+  const { url, user, pass } = cfg();
+  const candidatos = [
+    ['/authenticate', 'POST'],
+    ['/ibpworkbench/controller/auth/login', 'POST'],
+    ['/ibpworkbench/controller/auth/validateLogin', 'POST']
+  ];
+  for (const [path, method] of candidatos) {
+    try {
+      const r = await fetch(url + path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: user, password: pass })
+      });
+      dbg('debugConn', method + ' ' + path + ' -> HTTP ' + r.status);
+      if (!r.ok) continue;
+      let val = null;
+      try {
+        const d = await r.json();
+        val = d.token || d.access_token || d.authToken || d.accessToken || null;
+        if (!val && typeof d === 'string') val = d;
+      } catch (e) {
+        const txt = await r.text();
+        if (txt && txt.length < 200) val = txt.trim().replace(/^"|"$/g, '');
+      }
+      if (val) {
+        workbenchToken = val;
+        dbg('debugConn', 'Token de Workbench obtenido vía ' + path);
+        return workbenchToken;
+      }
+    } catch (e) {
+      dbg('debugConn', method + ' ' + path + ' -> error de red: ' + e.message);
+    }
+  }
+  dbg('debugConn', 'No se pudo obtener token de Workbench por ningún candidato.');
+  return '';
+}
+
+// Llama a un endpoint NATIVO (/crops/{crop}/...) probando primero Bearer y,
+// si da 401/403, reintentando con x-auth-token de Workbench.
+async function nativeFetch(path, options, debugId) {
+  const { url } = cfg();
+  const full = url + path;
+  options = options || {};
+  const baseHeaders = Object.assign({}, options.headers || {});
+
+  // Intento 1: Bearer
+  let r = await fetch(full + (options.qs || ''), {
+    method: options.method || 'GET',
+    headers: Object.assign({}, baseHeaders, { 'Authorization': 'Bearer ' + bearerToken }),
+    body: options.body
+  });
+  if (debugId) dbg(debugId, (options.method || 'GET') + ' ' + path + ' [Bearer] -> HTTP ' + r.status);
+
+  // v2: algunos endpoints nativos (ej. lots/search) responden 500 en vez de
+  // 401/403 cuando el token no es el correcto para ESE endpoint puntual.
+  // Por eso reintentamos con el otro token también en 500/400, no solo
+  // en 401/403.
+  if ([401, 403, 500, 400].includes(r.status)) {
+    const wbt = await getWorkbenchToken();
+    if (wbt) {
+      r = await fetch(full + (options.qs || ''), {
+        method: options.method || 'GET',
+        headers: Object.assign({}, baseHeaders, { 'x-auth-token': wbt }),
+        body: options.body
+      });
+      if (debugId) dbg(debugId, (options.method || 'GET') + ' ' + path + ' [x-auth-token] -> HTTP ' + r.status);
+    } else if (debugId) {
+      dbg(debugId, '(sin token de Workbench disponible para reintentar)');
+    }
+  }
+  return r;
+}
+
+document.getElementById('btnConectar').addEventListener('click', async () => {
+  const statusEl = document.getElementById('connStatus');
+  statusEl.textContent = 'Conectando...';
+  statusEl.className = 'conn-status';
+  try {
+    bearerToken = await getBearerToken();
+    statusEl.textContent = '✓ Conectado como ' + cfg().user;
+    statusEl.className = 'conn-status ok';
+    document.getElementById('btnCargarLotes').disabled = false;
+    document.getElementById('studyQuery').disabled = false;
+    document.getElementById('btnBuscarVivero').disabled = false;
+    document.getElementById('statusLotes').textContent = 'Listo para cargar.';
+    document.getElementById('statusVivero').textContent = 'Busca un vivero por nombre o studyDbId.';
+    // Detectar los programas disponibles (ej. "Mejoramiento", "Evaluación")
+    // para poder buscar el vivero en todos ellos, no solo en el activo por
+    // defecto.
+    cargarProgramasBMS();
+  } catch (e) {
+    statusEl.textContent = '✗ ' + e.message;
+    statusEl.className = 'conn-status bad';
+  }
+});
+
+/* =========================================================================
+   0) PROGRAMAS DE BMS (ej. "Mejoramiento", "Evaluación")
+   =========================================================================
+   PUNTO IMPORTANTE / SIN CONFIRMAR TODAVIA:
+   Este BMS tiene más de un "Program" dentro del mismo crop (al menos
+   "Mejoramiento" y "Evaluación"). La búsqueda de estudios/viveros
+   (/brapi/v2/studies) por defecto solo trae resultados del programa que
+   esté activo en el token/sesión actual (normalmente "Mejoramiento"), así
+   que un vivero creado dentro de "Evaluación" no aparece si no filtramos
+   explícitamente por su programDbId/programUUID.
+
+   No sabemos todavía el endpoint exacto que expone este BMS para listar
+   programas, así que probamos varios candidatos conocidos (nativo tipo
+   Workbench y BrAPI v2 estándar) y usamos el primero que traiga datos.
+   Todo queda registrado en el diagnóstico de conexión.
+   ========================================================================= */
+
+let programasDisponibles = []; // [{programDbId, programUUID, programName, activo:true/false}]
+
+function extractProgramList(d) {
+  if (Array.isArray(d)) return d;
+  if (d && d.result && Array.isArray(d.result.data)) return d.result.data;
+  if (d && Array.isArray(d.data)) return d.data;
+  if (d && Array.isArray(d.content)) return d.content;
+  return [];
+}
+
+async function cargarProgramasBMS() {
+  const { crop } = cfg();
+  const candidatos = [
+    { path: '/bmsapi/crops/' + crop + '/programs', label: 'nativo /crops/{crop}/programs' },
+    { path: '/bmsapi/' + crop + '/brapi/v2/programs', label: 'BrAPI v2 /programs' },
+    { path: '/bmsapi/crops/' + crop + '/program-summaries', label: 'nativo /program-summaries' }
+  ];
+
+  programasDisponibles = [];
+  for (const c of candidatos) {
+    try {
+      const r = await nativeFetch(c.path, { qs: '?page=0&pageSize=100' }, 'debugConn');
+      if (!r.ok) continue;
+      const d = await r.json();
+      const lista = extractProgramList(d);
+      if (!lista.length) continue;
+      dbg('debugConn', 'Estructura cruda del primer programa (' + c.label + '): ' + JSON.stringify(lista[0]).slice(0,500));
+      programasDisponibles = lista.map(p => ({
+        programDbId: p.programUUID || p.uniqueID || p.uniqueId || p.programDbId || p.id || '',
+        programUUID: p.programUUID || p.uniqueID || p.uniqueId || p.id || '',
+        programName: p.name || p.programName || p.crop_name || '(sin nombre)'
+      })).filter(p => p.programDbId || p.programUUID);
+      if (programasDisponibles.length) {
+        dbg('debugConn', 'Programas detectados vía ' + c.label + ': ' +
+            programasDisponibles.map(p => p.programName + ' (id ' + p.programDbId + ')').join(' | '));
+        break;
+      }
+    } catch (e) {
+      dbg('debugConn', c.label + ' -> error: ' + e.message);
+    }
+  }
+
+  if (!programasDisponibles.length) {
+    dbg('debugConn', 'No se pudo obtener la lista de programas por ningún endpoint candidato. La búsqueda de vivero usará solo el programa activo por defecto (probablemente "Mejoramiento").');
+  }
+  renderProgTags();
+}
+
+function renderProgTags() {
+  const cont = document.getElementById('progTags');
+  cont.innerHTML = '';
+  if (!programasDisponibles.length) {
+    cont.innerHTML = '<span class="prog-tag unknown">(no se detectaron programas; se usará el activo por defecto)</span>';
+    return;
+  }
+  programasDisponibles.forEach((p, idx) => {
+    if (p.selected === undefined) p.selected = true; // por defecto, buscar en todos
+    const tag = document.createElement('span');
+    tag.className = 'prog-tag' + (p.selected ? ' on' : '');
+    tag.textContent = p.programName;
+    tag.title = 'ID: ' + p.programDbId;
+    tag.onclick = () => { p.selected = !p.selected; renderProgTags(); };
+    cont.appendChild(tag);
+  });
+}
+
+/* =========================================================================
+   1) CATALOGO DE LOTES (LOT UID -> GID, DESIGNATION)
+   Endpoint confirmado contra este BMS (ver bms_sync.py / audit_report.txt):
+     POST /crops/{crop}/lots/search   (body {} para todos los lotes)
+       -> devuelve un searchResultDbId (o similar) o datos inline
+     GET  /crops/{crop}/lots/search?searchResultDbId=X&page=N&size=5000
+       -> páginas de lotes, cada uno con lotUUID / gid / designation
+   ========================================================================= */
+
+let lotIndex = new Map(); // LOT UID (upper) -> {lotUID, gid, desig}
+let debugLotesCrudos = new Map(); // gid -> [registros crudos] -- solo para depurar duplicados, se puede quitar después
+let gidIndex = new Map(); // GID (string) -> {gid, desigOriginal, desigTight, lotCount} -- usado por la pestaña "Validar Listado Crudo"
+let lotesPorGid = new Map(); // GID (string) -> [{lotUID, ubicacion, peso, unidad, anio, disponible}] -- usado por "Asignar LOT_UID por GID"
+let uniqueGermplasmList = []; // [{gid, desigOriginal, desigTight}] deduplicado por GID, para búsqueda por nombre
+
+function stripAccents(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+function normLoose(s) { return stripAccents(s).toUpperCase().replace(/\s+/g, ' ').trim(); }
+function normTight(s) { return normLoose(s).replace(/[^A-Z0-9]/g, ''); }
+
+function extractList(d) {
+  if (Array.isArray(d)) return d;
+  if (d && Array.isArray(d.data)) return d.data;
+  if (d && d.result && Array.isArray(d.result.data)) return d.result.data;
+  if (d && Array.isArray(d.result)) return d.result;
+  if (d && Array.isArray(d.content)) return d.content;
+  for (const k of ['records','rows','germplasm','results']) {
+    if (d && Array.isArray(d[k])) return d[k];
+  }
+  return [];
+}
+
+function pickSearchId(d) {
+  if (!d || typeof d !== 'object') return null;
+  for (const f of ['searchResultDbId','searchRequestId','searchResultsDbId','id','resultsId','requestId','queryId']) {
+    if (d[f] != null && d[f] !== '') return d[f];
+  }
+  return null;
+}
+
+async function cargarLotesBMS() {
+  const { crop } = cfg();
+  const btn = document.getElementById('btnCargarLotes');
+  const statusEl = document.getElementById('statusLotes');
+  btn.disabled = true;
+  statusEl.innerHTML = '<span class="spinner-inline"></span> Consultando lotes en BMS...';
+  lotIndex = new Map();
+  gidIndex = new Map();
+  lotesPorGid = new Map();
+
+  try {
+    // Paso 1: crear la búsqueda (POST con body vacío = todos los lotes)
+    const r1 = await nativeFetch('/bmsapi/crops/' + crop + '/lots/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({})
+    }, 'debugLotes');
+
+    if (!r1.ok) throw new Error('POST lots/search falló: HTTP ' + r1.status);
+    const d1 = await r1.json();
+
+    // Algunas instancias devuelven los datos directo en el POST
+    let inline = extractList(d1);
+    if (inline.length) {
+      inline.forEach(indexarLote);
+    } else {
+      const searchId = pickSearchId(d1);
+      if (!searchId) throw new Error('La respuesta de lots/search no trajo datos ni un id de búsqueda. Cuerpo: ' + JSON.stringify(d1).slice(0,300));
+
+      // Paso 2: paginar resultados. Distintas versiones de BMS usan un
+      // nombre de parámetro distinto para el id de búsqueda; probamos los
+      // dos conocidos y nos quedamos con el que sí traiga datos.
+      const idParams = ['searchResultDbId', 'searchRequestId'];
+      let idParamGanador = null;
+      const size = 5000;
+
+      for (const idParam of idParams) {
+        let page = 0;
+        let totalEsteParam = 0;
+        while (true) {
+          const qs = '?' + idParam + '=' + encodeURIComponent(searchId) + '&isBrowseAllResults=true&page=' + page + '&size=' + size;
+          const r2 = await nativeFetch('/bmsapi/crops/' + crop + '/lots/search', { qs }, 'debugLotes');
+          if (!r2.ok) { dbg('debugLotes', 'idParam=' + idParam + ' página ' + page + ' falló HTTP ' + r2.status); break; }
+          const d2 = await r2.json();
+          const recs = extractList(d2);
+          if (!recs.length) break;
+          recs.forEach(indexarLote);
+          totalEsteParam += recs.length;
+          statusEl.innerHTML = '<span class="spinner-inline"></span> Cargando lotes... ' + lotIndex.size + ' hasta ahora';
+          if (recs.length < size) break;
+          page++;
+          if (page > 60) break; // límite de seguridad
+        }
+        if (totalEsteParam > 0) { idParamGanador = idParam; break; }
+      }
+      if (idParamGanador) dbg('debugLotes', 'Parámetro de búsqueda que funcionó: ' + idParamGanador);
+    }
+
+    if (lotIndex.size === 0) {
+      statusEl.innerHTML = '<span class="hl-bad">No se cargó ningún lote. Revisa el diagnóstico.</span>';
+    } else {
+      uniqueGermplasmList = Array.from(gidIndex.values());
+      statusEl.innerHTML = '<span class="hl-ok">Lotes cargados:</span> ' + lotIndex.size +
+        ' &nbsp;|&nbsp; <span class="hl-ok">GID únicos:</span> ' + gidIndex.size;
+      document.getElementById('scanOrigen').disabled = false;
+      document.getElementById('scanOrigen').placeholder = 'Escanee el LOT UID del origen';
+      document.getElementById('scanGenbank').disabled = false;
+      document.getElementById('scanLote').disabled = false;
+      document.getElementById('scanLote').placeholder = 'Escanee el GID del sobre';
+      document.getElementById('btnIniciarCamaraLote').disabled = false;
+      document.getElementById('fileInput').disabled = false;
+      document.getElementById('fileStatus').textContent = 'Listo. Sube el archivo Excel del listado crudo.';
+      document.getElementById('btnProcesar').disabled = (sheetRows.length === 0);
+      document.getElementById('btnDescargarInventario').disabled = false;
+    }
+  } catch (e) {
+    statusEl.innerHTML = '<span class="hl-bad">Error: ' + e.message + '</span>';
+    dbg('debugLotes', 'Error: ' + e.message);
+  }
+  btn.disabled = false;
+}
+
+let _muestraLoteImpresa = false; // solo para diagnóstico
+
+// Año de creación del lote: no confirmado todavía contra este BMS. Se
+// prueba una lista de nombres de campo conocidos de BMS/BrAPI; si sale en
+// blanco en el Excel o en la tabla de validación, revisa el console.log
+// de "Ejemplo de lote crudo" (ver abajo) para ver el nombre real del
+// campo de fecha en tu instancia y agregarlo a esta lista.
+function extraerAnioLote(rec) {
+  const candidatos = [
+    rec.createdDate, rec.creationDate, rec.dateCreated, rec.lotCreatedDate,
+    rec.createdDatetime, rec.createdAt, rec.createdDateTime, rec.recordDate
+  ];
+  for (const c of candidatos) {
+    if (c === undefined || c === null || c === '') continue;
+    const m = String(c).match(/(\d{4})/);
+    if (m) return m[1];
+  }
+  return '';
+}
+
+function indexarLote(rec) {
+  { const gidDbg = String(rec.gid || rec.GID || '').trim();
+    if (gidDbg) { if (!debugLotesCrudos.has(gidDbg)) debugLotesCrudos.set(gidDbg,[]); debugLotesCrudos.get(gidDbg).push(rec); } }
+  if(!_muestraLoteImpresa) {
+    _muestraLoteImpresa = true;
+    console.log('[Inventario BMS] Ejemplo de lote crudo (revisa el nombre real de la ubicación aquí):',rec);
+  }
+
+  const lotUID = rec.lotUUID  || rec.lotUID || rec.stockId || rec.lotId || '';
+  const gid = String(rec.gid || rec.GID || '').trim();
+  const desig = rec.designation || rec.germplasmName || '';
+  
+  // peso actual: mismo campo que ya usamos para disponible ene el resto de la app
+  const pesoNum = Number(rec.availableBalance ?? rec.actualBalance ?? rec.amount);
+
+  // ubicación (Storage Location): confirmado contra este BMS -- se ve
+  // correctamente en "Cargar Listado Oficial" y "Reporte Genbank" (ej.
+  // "Santa Lucia Milpas Alta", "CF1_ CAJA 300").
+  const ubicacion = rec.locationName || rec.locationAbbrevation ||
+    (rec.storageLocation && (rec.storageLocation.locationName || rec.storageLocation.name)) ||
+    rec.location || '';
+
+  // Unidad de medida (ej. "g", "kg"): tampoco confirmado todavía. Mismo
+  // trato -- si sale vacía en el Excel, revisa el console.log de arriba.
+  const unidad = rec.unitName || (rec.unit && (rec.unit.name || rec.unit.unitName)) ||
+    rec.unitAbbreviation || rec.unidad || '';
+
+  const anio = extraerAnioLote(rec);
+
+  if (lotUID) lotIndex.set(String(lotUID).toUpperCase(),{
+    lotUID: String(lotUID), gid, desig,
+    peso: isNaN(pesoNum) ? '' : pesoNum,
+    ubicacion,
+    unidad,
+    anio
+  });
+
+  // Índice inverso GID -> lotes, para "Asignar LOT_UID por GID" (envelope
+  // de cosecha trae el GID impreso; se busca el LOT_UID correspondiente).
+  if (gid && lotUID) {
+    if (!lotesPorGid.has(gid)) lotesPorGid.set(gid, []);
+    lotesPorGid.get(gid).push({
+      lotUID: String(lotUID),
+      ubicacion,
+      peso: isNaN(pesoNum) ? '' : pesoNum,
+      unidad,
+      anio,
+      disponible: !isNaN(pesoNum) && pesoNum > 0
+    });
+  }
+
+  if (gid) {
+    let e = gidIndex.get(gid);
+    if (!e) {
+      e = { gid, desigOriginal: desig, desigTight: normTight(desig), lotCount: 0,
+            totalAvailable: 0, anyOpen: false, unidades: new Set(), anios: new Set(), ubicaciones: new Set() };
+      gidIndex.set(gid, e);
+    }
+    
+    // Disponibilidad: sumamos el saldo disponible de todos los lotes de este
+    // GID y marcamos si al menos uno está abierto (status !== CLOSED).
+    const avail = Number(rec.availableBalance);
+    if (!isNaN(avail)) e.totalAvailable += avail;
+    // Solo contamos como "lote" los que sí tienen semilla disponible -- un
+    // lote vacío o cerrado no debería inflar el "(en N lotes)" que ve AR.
+    if (!isNaN(avail) && avail > 0) e.lotCount++;
+    if (rec.status && String(rec.status).toUpperCase() !== 'CLOSED') e.anyOpen = true;
+    // Unidad de medida (g, kg, etc.) -- normalmente es la misma para todos
+    // los lotes de un mismo GID, pero se guarda como set por si hubiera
+    // inconsistencias en BMS.
+    if (unidad) e.unidades.add(String(unidad).trim());
+    // Año de creación -- también como set, por si el mismo GID tiene lotes
+    // creados en años distintos.
+    if (anio) e.anios.add(anio);
+    // Ubicación (Storage Location en BMS) -- también como set, por si el
+    // mismo GID tiene lotes guardados en más de una ubicación.
+    if (ubicacion) e.ubicaciones.add(String(ubicacion).trim());
+  }
+}
+
+function descargarInventarioBMS(){
+  if(!lotIndex.size) { alert('Primero Carga el catálogo de lotes desde BMS'); return; }
+
+  const filas = [];
+  lotIndex.forEach(lot => {
+    filas.push({
+      GID: lot.gid,
+      LNAME: lot.desig,
+      'Peso Actual': lot.peso,
+      'Unidad': lot.unidad,
+      'Año Creación': lot.anio,
+      'Ubicación': lot.ubicacion
+    });
+  });
+
+  const ws = XLSX.utils.json_to_sheet(filas);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Inventario BMS');
+  XLSX.writeFile(wb, 'inventario_bms_' + new Date().toISOString().slice(0,10) + '.xlsx');
+}
+
+
+
+/* =========================================================================
+   2) VIVERO (Study) -> OBS_UNIT_ID -> GID, DESIGNATION, ENTRY, PLOT
+   Endpoint BrAPI estándar (usado igual en bms_sync.py):
+     GET /{crop}/brapi/v2/observationunits?studyDbId=X&page=N&pageSize=Y
+   Para resolver el studyDbId a partir de un nombre, se pagina
+     GET /{crop}/brapi/v2/studies?page=N&pageSize=200
+   y se filtra en el navegador (el filtro studyName del servidor no es
+   confiable, según lo confirmado en pruebas previas).
+
+   AHORA: esta búsqueda se repite una vez POR CADA PROGRAMA seleccionado
+   (ver sección 0, "Mejoramiento" / "Evaluación" / los que detecte BMS),
+   pasando programDbId como filtro, para no perder viveros creados en un
+   programa distinto al que esté activo por defecto en la sesión.
+   ========================================================================= */
+
+let viveroIndex = new Map(); // OBS_UNIT_ID (upper) -> {obs, gid, desig, entry, plot, env}
+let estudiosSeleccionados = []; // [{studyDbId, studyName, programName}, ...] -- puede ser más de un ambiente/programa
+let pendingGidResolution = []; // [{obj, uuid}] -- OBS cuyo GID vino vacío y hay que resolver vía germplasmDbId
+
+// Busca estudios que coincidan con `q` dentro de un programa concreto
+// (o sin filtro de programa si programDbId es null, para no romper
+// instancias donde el parámetro no aplique).
+async function buscarEstudiosEnPrograma(crop, q, programDbId, programName) {
+  const pageSize = 200;
+  let encontrados = [];
+  for (let page = 0; page < 15; page++) {
+    let qs = '?page=' + page + '&pageSize=' + pageSize;
+    if (programDbId) qs += '&programDbId=' + encodeURIComponent(programDbId);
+    const r = await nativeFetch('/bmsapi/' + crop + '/brapi/v2/studies', { qs }, 'debugVivero');
+    if (!r.ok) { dbg('debugVivero', '[' + (programName||'default') + '] página ' + page + ' de studies falló HTTP ' + r.status); break; }
+    const d = await r.json();
+    const lista = (d.result && d.result.data) || [];
+    dbg('debugVivero', '[' + (programName || 'default') + '] programDbId enviado=' + programDbId + ' -> ' + lista.length + ' estudios(s) recibidos en esta página');
+    if (!lista.length) break;
+    encontrados = encontrados.concat(lista.filter(s => (s.studyName||'').toLowerCase().indexOf(q.toLowerCase()) !== -1));
+    if (lista.length < pageSize) break;
+    if (encontrados.length) break; // ya encontramos algo, no seguimos paginando de más
+  }
+    return encontrados.map(s => ({ studyDbId: s.studyDbId, studyName: s.studyName,
+    programDbId: programDbId || s.programDbId || s.programUUID || '',
+    programName: programName || s.programName || '' }));
+}
+
+
+async function buscarVivero() {
+  const { crop } = cfg();
+  const q = document.getElementById('studyQuery').value.trim();
+  const statusEl = document.getElementById('statusVivero');
+  if (!q) { statusEl.innerHTML = '<span class="hl-bad">Escribe un nombre o studyDbId.</span>'; return; }
+
+  // Si es puramente numérico, lo tomamos directo como studyDbId sin buscar
+  // (un solo ambiente, el que el usuario indicó).
+  if (/^\d+$/.test(q)) {
+    estudiosSeleccionados = [{ studyDbId: q, studyName: '(studyDbId ' + q + ')', programName: '' }];
+    statusEl.innerHTML = '<span class="hl-ok">Vivero fijado por ID:</span> ' + q + ' &mdash; presiona "Cargar OBS UNIT del vivero".';
+    document.getElementById('btnCargarVivero').disabled = false;
+    return;
+  }
+
+  statusEl.innerHTML = '<span class="spinner-inline"></span> Buscando estudio "' + q + '"...';
+  estudiosSeleccionados = [];
+  document.getElementById('btnCargarVivero').disabled = true;
+
+  try {
+    const programasABuscar = programasDisponibles.filter(p => p.selected);
+    let encontrados = [];
+
+    if (programasABuscar.length) {
+      // Buscar el mismo nombre de vivero en cada programa seleccionado
+      // (ej. "Mejoramiento" y "Evaluación") y juntar los resultados,
+      // evitando duplicados por studyDbId.
+      const vistos = new Set();
+      for (const prog of programasABuscar) {
+        const enEstePrograma = await buscarEstudiosEnPrograma(crop, q, prog.programDbId, prog.programName);
+        dbg('debugVivero', 'Programa "' + prog.programName + '": ' + enEstePrograma.length + ' coincidencia(s)');
+        for (const est of enEstePrograma) {
+          if (vistos.has(est.studyDbId)) continue;
+          vistos.add(est.studyDbId);
+          encontrados.push(est);
+        }
+      }
+    } else {
+      // Sin lista de programas (no se pudo detectar) -> comportamiento
+      // anterior, busca en el programa activo por defecto únicamente.
+      encontrados = await buscarEstudiosEnPrograma(crop, q, null, '');
+    }
+
+    if (!encontrados.length) {
+      const dondeSeBuscó = programasABuscar.length
+        ? programasABuscar.map(p => p.programName).join(', ')
+        : '(programa por defecto)';
+      statusEl.innerHTML = '<span class="hl-bad">No se encontró ningún vivero que contenga "' + q + '" en: ' + esc(dondeSeBuscó) + '.</span>';
+      return;
+    }
+
+    // IMPORTANTE: un mismo vivero puede tener varios "Environment Number"
+    // (varios ambientes/ubicaciones), cada uno con su propio studyDbId, y
+    // además puede existir en más de un programa (Mejoramiento/Evaluación).
+    // Cargamos TODOS los que coincidan con el nombre para no perder
+    // ningún OBS_UNIT_ID físico durante el escaneo.
+    estudiosSeleccionados = encontrados;
+    dbg('debugVivero', 'Coincidencias encontradas: ' + estudiosSeleccionados.map(s => s.studyName + (s.programName ? ' [' + s.programName + ']' : '') + ' (id ' + s.studyDbId + ')').join(' | '));
+
+    const nombres = estudiosSeleccionados.map(s => esc(s.studyName) + (s.programName ? ' <span style="color:#888">(' + esc(s.programName) + ')</span>' : '')).join('<br>&nbsp;&nbsp;&middot; ');
+    statusEl.innerHTML = '<span class="hl-ok">Encontrado' + (estudiosSeleccionados.length>1?'s ('+estudiosSeleccionados.length+' ambientes)':'') + ':</span><br>&nbsp;&nbsp;&middot; ' + nombres + '<br>Presiona "Cargar OBS UNIT del vivero".';
+    document.getElementById('btnCargarVivero').disabled = false;
+  } catch (e) {
+    statusEl.innerHTML = '<span class="hl-bad">Error: ' + e.message + '</span>';
+    dbg('debugVivero', 'Error: ' + e.message);
+  }
+}
+
+async function cargarViveroBMS() {
+  if (!estudiosSeleccionados.length) return;
+  const { crop } = cfg();
+  const statusEl = document.getElementById('statusVivero');
+  const btn = document.getElementById('btnCargarVivero');
+  btn.disabled = true;
+  viveroIndex = new Map();
+  pendingGidResolution = [];
+  let totalGeneral = 0;
+
+  for (const est of estudiosSeleccionados) {
+    const etiquetaEst = est.studyName + (est.programName ? ' [' + est.programName + ']' : '');
+    statusEl.innerHTML = '<span class="spinner-inline"></span> Cargando "' + esc(etiquetaEst) + '" (studyDbId ' + est.studyDbId + ')...';
+    try {
+      let page = 0;
+      const pageSize = 1000;
+      let totalEsteEstudio = 0;
+      while (true) {
+        const qs = '?studyDbId=' + encodeURIComponent(est.studyDbId) + '&page=' + page + '&pageSize=' + pageSize;
+        const r = await nativeFetch('/bmsapi/' + crop + '/brapi/v2/observationunits', { qs }, 'debugVivero');
+        if (!r.ok) { dbg('debugVivero', 'Página ' + page + ' de "' + etiquetaEst + '" falló HTTP ' + r.status); break; }
+        const d = await r.json();
+        const recs = (d.result && d.result.data) || [];
+        if (!recs.length) break;
+        recs.forEach(rec => indexarObsUnit(rec, etiquetaEst));
+        totalEsteEstudio += recs.length;
+        totalGeneral += recs.length;
+        statusEl.innerHTML = '<span class="spinner-inline"></span> Cargando OBS UNIT... ' + totalGeneral + ' hasta ahora';
+        const totalPages = (d.metadata && d.metadata.pagination && d.metadata.pagination.totalPages) || null;
+        if (recs.length < pageSize) break;
+        page++;
+        if (totalPages != null && page >= totalPages) break;
+        if (page > 200) break; // límite de seguridad
+      }
+      dbg('debugVivero', '"' + etiquetaEst + '" (studyDbId ' + est.studyDbId + '): ' + totalEsteEstudio + ' OBS UNIT cargados');
+    } catch (e) {
+      dbg('debugVivero', 'Error cargando "' + etiquetaEst + '": ' + e.message);
+    }
+  }
+
+  if (pendingGidResolution.length > 0) {
+    statusEl.innerHTML = '<span class="spinner-inline"></span> Resolviendo ' + pendingGidResolution.length + ' GID faltantes vía germplasmDbId...';
+    await resolverGIDsFaltantes(crop);
+  }
+
+  if (viveroIndex.size === 0) {
+    statusEl.innerHTML = '<span class="hl-bad">No se cargó ningún OBS UNIT. Revisa el diagnóstico.</span>';
+  } else {
+    const nombres = estudiosSeleccionados.map(s => esc(s.studyName) + (s.programName ? ' (' + esc(s.programName) + ')' : '')).join(', ');
+    statusEl.innerHTML = '<span class="hl-ok">Vivero cargado:</span> ' + viveroIndex.size + ' OBS UNIT ID únicos de ' +
+      estudiosSeleccionados.length + ' ambiente' + (estudiosSeleccionados.length>1?'s':'') + ' (' + nombres + ').';
+  }
+  btn.disabled = false;
+}
+
+async function resolverGIDsFaltantes(crop) {
+  if (!pendingGidResolution.length) return;
+  const uuids = [...new Set(pendingGidResolution.map(p => p.uuid).filter(Boolean))];
+  if (!uuids.length) return;
+  const BATCH = 200;
+  const uuidToGid = {};
+  for (let i = 0; i < uuids.length; i += BATCH) {
+    const batch = uuids.slice(i, i + BATCH);
+    try {
+      const r = await nativeFetch('/bmsapi/crops/' + crop + '/germplasm/matches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ germplasmUUIDs: batch })
+      }, 'debugVivero');
+      if (r.ok) {
+        const d = await r.json();
+        const lista = extractList(d);
+        lista.forEach((item, idx) => {
+          const numGid = String(item.gid || item.GID || item.id || '');
+          const uuid = item.germplasmDbId || item.germplasmUUID || item.uuid || item.uid || '';
+          if (numGid && uuid) uuidToGid[uuid] = numGid;
+          else if (numGid && batch[idx]) uuidToGid[batch[idx]] = numGid; // fallback posicional
+        });
+      } else {
+        dbg('debugVivero', 'germplasm/matches (batch ' + (i/BATCH+1) + ') falló HTTP ' + r.status);
+      }
+    } catch (e) {
+      dbg('debugVivero', 'germplasm/matches error: ' + e.message);
+    }
+  }
+  let resueltos = 0;
+  pendingGidResolution.forEach(p => {
+    if (uuidToGid[p.uuid]) { p.obj.gid = uuidToGid[p.uuid]; resueltos++; }
+  });
+  dbg('debugVivero', 'GIDs resueltos: ' + resueltos + '/' + pendingGidResolution.length);
+}
+
+function indexarObsUnit(rec, envName) {
+  if (!window.__yaLoggeaado) { window.__yaLoggeaado = true; console.log('REGISTRO CRUDO COMPLETO:', JSON.stringify(rec, null, 2));}
+  const obs = rec.observationUnitDbId || rec.observationUnitName || '';
+  if (!obs) return;
+  let gid = String(rec.gid || '');
+  const desig = rec.germplasmName || '';
+
+  let entry = '';
+  try {
+    const ai = typeof rec.additionalInfo === 'string' ? JSON.parse(rec.additionalInfo) : (rec.additionalInfo || {});
+    entry = ai.ENTRY_NO || ai.entryNo || '';
+  } catch (e) {}
+
+  let plot = '';
+  try {
+    const pos = rec.observationUnitPosition || {};
+    if (Array.isArray(pos.observationLevelRelationships)) {
+      const p = pos.observationLevelRelationships.find(l => l.levelName === 'PLOT_CODE');
+      if (p) plot = p.levelCode || '';
+    }
+  } catch (e) {}
+
+  const entry_obj = { obs: String(obs), gid, desig, entry: String(entry||''), plot: String(plot||''), env: envName || '' };
+
+  // Si BMS no trajo el GID numérico directo en este registro, guardamos el
+  // germplasmDbId (UUID) para resolverlo en bloque después vía
+  // /germplasm/matches -- así no se pierde la comparación por GID vacío.
+  if (!gid && rec.germplasmDbId) {
+    pendingGidResolution.push({ obj: entry_obj, uuid: rec.germplasmDbId });
+  }
+
+  viveroIndex.set(String(obs).toUpperCase(), entry_obj);
+  const nameKey = String(rec.observationUnitName||'').toUpperCase();
+  if (nameKey && nameKey !== String(obs).toUpperCase()) viveroIndex.set(nameKey, entry_obj);
+  const puiKey = String(rec.observationUnitPUI||'').toUpperCase();
+  if (puiKey) viveroIndex.set(puiKey, entry_obj);
+}
+
+/* =========================================================================
+   ESCANEO / COMPARACION / HISTORIAL  (igual que la versión basada en Excel)
+   ========================================================================= */
+
+const $ = id => document.getElementById(id);
+const norm = v => String(v ?? '').trim();
+const key  = v => norm(v).toUpperCase();
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+let cur = { origen:null, vivero:null, origenCount:0 };
+let history = [];
+
+function fijarOrigen(hit, code) {
+  cur.origen = { code, ...hit };
+  cur.origenCount = 0;
+  $('boxOrigen').classList.add('locked');
+  $('lockTag').style.display = 'inline-block';
+  $('btnLiberar').style.display = 'inline-block';
+  $('scanOrigen').value = code;
+  $('scanOrigen').disabled = true;
+  $('subOrigen').innerHTML = 'Origen fijado &middot; GID ' + esc(hit.gid) + ' &middot; ' + esc(hit.desig);
+  $('scanVivero').disabled = false;
+  $('scanVivero').placeholder = 'Escanee OBS UNIT ID (puede escanear varios)';
+  $('subVivero').innerHTML = '<span style="color:#137333">Listo para escanear.</span>';
+  $('verdict').className = 'verdict';
+  $('verdict').innerHTML = 'Origen fijado. Escanee los OBS UNIT ID del vivero.';
+  renderPanels();
+  $('scanVivero').focus();
+}
+
+function liberarOrigen() {
+  cur.origen = null;
+  cur.vivero = null;
+  cur.origenCount = 0;
+  $('boxOrigen').classList.remove('locked');
+  $('lockTag').style.display = 'none';
+  $('btnLiberar').style.display = 'none';
+  $('scanOrigen').disabled = false;
+  $('scanOrigen').value = '';
+  $('subOrigen').textContent = '';
+  $('scanVivero').disabled = true;
+  $('scanVivero').value = '';
+  $('scanVivero').placeholder = 'Primero fije un origen';
+  $('subVivero').textContent = '';
+  $('verdict').className = 'verdict';
+  $('verdict').textContent = 'Escanee el LOT UID de origen para comenzar';
+  renderPanels();
+  $('scanOrigen').focus();
+}
+
+$('btnLiberar').addEventListener('click', liberarOrigen);
+
+$('scanOrigen').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const code = norm($('scanOrigen').value);
+  if (!lotIndex.size) { $('subOrigen').innerHTML = '<span class="hl-bad">Carga primero el catálogo de lotes desde BMS.</span>'; return; }
+  if (!code) return;
+  const hit = lotIndex.get(code.toUpperCase());
+  if (!hit) {
+    $('subOrigen').innerHTML = '<span class="hl-bad">No encontrado en el catálogo de lotes.</span>';
+    cur.origen = null;
+    return;
+  }
+  fijarOrigen(hit, code);
+});
+
+$('scanVivero').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const code = norm($('scanVivero').value);
+  if (!cur.origen) { $('subVivero').innerHTML = '<span class="hl-bad">Fije primero un origen.</span>'; return; }
+  if (!viveroIndex.size) { $('subVivero').innerHTML = '<span class="hl-bad">Carga primero el vivero desde BMS.</span>'; return; }
+  if (!code) return;
+  const hit = viveroIndex.get(code.toUpperCase());
+  cur.vivero = hit ? {code, ...hit} : {code, gid:'', desig:'', entry:'', plot:'', notFound:true};
+  if (hit) $('subVivero').innerHTML = 'GID ' + esc(hit.gid) + ' &middot; ' + esc(hit.desig) + (hit.env ? ' &middot; <span style="color:#888">'+esc(hit.env)+'</span>' : '');
+  else     $('subVivero').innerHTML = '<span class="hl-bad">No encontrado en el vivero cargado.</span> <span style="color:#137333">(campo listo para el siguiente escaneo)</span>';
+  renderPanels();
+  evaluate();
+  $('scanVivero').value = '';
+  $('scanVivero').focus();
+});
+
+function renderPanels() {
+  const o = cur.origen, v = cur.vivero;
+  $('kvOrigen').innerHTML =
+    '<b>LOT UID</b><span class="mono">' + (o ? esc(o.code) : '&mdash;') + '</span>' +
+    '<b>GID</b><span class="mono">' + (o && o.gid ? esc(o.gid) : '&mdash;') + '</span>' +
+    '<b>DESIGNATION</b><span>' + (o && o.desig ? esc(o.desig) : '&mdash;') + '</span>';
+  $('kvVivero').innerHTML =
+    '<b>OBS UNIT ID</b><span class="mono">' + (v ? esc(v.code) : '&mdash;') + '</span>' +
+    '<b>GID</b><span class="mono">' + (v && v.gid ? esc(v.gid) : '&mdash;') + '</span>' +
+    '<b>DESIGNATION</b><span>' + (v && v.desig ? esc(v.desig) : '&mdash;') + '</span>' +
+    '<b>ENTRY</b><span>' + (v && v.entry ? esc(v.entry) : '&mdash;') + '</span>' +
+    '<b>PLOT_CODE</b><span class="mono">' + (v && v.plot ? esc(v.plot) : '&mdash;') + '</span>';
+}
+
+function evaluate() {
+  const o = cur.origen, v = cur.vivero;
+  if (!o || !v) return;
+  const ve = $('verdict');
+  if (o.notFound || v.notFound) {
+    cur.origenCount = (cur.origenCount || 0) + 1;
+    ve.className = 'verdict false';
+    ve.innerHTML = 'FALSO <small>El OBS UNIT ID no se encontró en el vivero cargado &middot; OBS verificados con este origen: ' + cur.origenCount + '</small>';
+    pushHistory('FALSO');
+    return;
+  }
+  cur.origenCount = (cur.origenCount || 0) + 1;
+  const gidOk   = key(o.gid)   === key(v.gid)   && o.gid   !== '';
+  const desigOk = key(o.desig) === key(v.desig) && o.desig !== '';
+  const ok = gidOk && desigOk;
+  const contador = ' &middot; OBS verificados con este origen: ' + cur.origenCount;
+  ve.className = 'verdict ' + (ok ? 'true' : 'false');
+  if (ok) {
+    ve.innerHTML = 'VERDADERO <small>GID y DESIGNATION coinciden &middot; ENTRY ' +
+                   esc(v.entry||'-') + ' &middot; PLOT ' + esc(v.plot||'-') + contador + '</small>';
+  } else {
+    const dif = [];
+    if (!gidOk)   dif.push('GID');
+    if (!desigOk) dif.push('DESIGNATION');
+    ve.innerHTML = 'FALSO <small>No coincide: ' + dif.join(' y ') + contador + '</small>';
+  }
+  pushHistory(ok ? 'VERDADERO' : 'FALSO');
+}
+
+function pushHistory(result) {
+  const o = cur.origen, v = cur.vivero;
+  const rec = {
+    hora: new Date().toLocaleTimeString(),
+    lot: o.code, obs: v.code,
+    gidO: o.gid, gidV: v.gid,
+    desO: o.desig, desV: v.desig,
+    entry: v.entry, plot: v.plot,
+    result
+  };
+  history.unshift(rec);
+  const tb = $('histTable').querySelector('tbody');
+  const tr = document.createElement('tr');
+  const cls = result === 'VERDADERO' ? 'badge-true' : 'badge-false';
+  const gidCls = key(o.gid)===key(v.gid) && o.gid!=='' ? '' : 'hl-bad';
+  const desCls = key(o.desig)===key(v.desig) && o.desig!=='' ? '' : 'hl-bad';
+  tr.innerHTML =
+    '<td>' + rec.hora + '</td>' +
+    '<td class="mono">' + esc(rec.lot) + '</td>' +
+    '<td class="mono">' + esc(rec.obs) + '</td>' +
+    '<td class="mono ' + gidCls + '">' + esc(rec.gidO||'-') + '</td>' +
+    '<td class="mono ' + gidCls + '">' + esc(rec.gidV||'-') + '</td>' +
+    '<td class="' + desCls + '">' + esc(rec.desO||'-') + '</td>' +
+    '<td class="' + desCls + '">' + esc(rec.desV||'-') + '</td>' +
+    '<td>' + esc(rec.entry||'-') + '</td>' +
+    '<td class="mono">' + esc(rec.plot||'-') + '</td>' +
+    '<td><span class="' + cls + '">' + result + '</span></td>';
+  tb.prepend(tr);
+  updateCounts();
+}
+
+function updateCounts() {
+  const ok = history.filter(h => h.result==='VERDADERO').length;
+  const bad = history.length - ok;
+  $('counts').innerHTML = 'OK: ' + ok + ' &nbsp;|&nbsp; Fallos: ' + bad + ' &nbsp;|&nbsp; Total: ' + history.length;
+}
+
+$('btnClear').addEventListener('click', () => {
+  history = [];
+  $('histTable').querySelector('tbody').innerHTML = '';
+  updateCounts();
+});
+
+$('btnExport').addEventListener('click', () => {
+  if (!history.length) { alert('No hay historial para exportar.'); return; }
+  const headers = ['Hora','LOT UID origen','OBS UNIT ID','GID origen','GID vivero','DESIG origen','DESIG vivero','ENTRY','PLOT','Resultado'];
+  const rows = [headers.join(',')];
+  history.forEach(h => {
+    const vals = [h.hora, h.lot, h.obs, h.gidO, h.gidV, h.desO, h.desV, h.entry, h.plot, h.result];
+    rows.push(vals.map(v => '"' + String(v||'').replace(/"/g,'""') + '"').join(','));
+  });
+  const csv = '\uFEFF' + rows.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'control_calidad_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+});
+
+/* =========================================================================
+   PESTAÑAS
+   ========================================================================= */
+function showTab(tab) {
+  $('tabEscaneo').style.display = (tab === 'escaneo') ? '' : 'none';
+  $('tabValidacion').style.display = (tab === 'validacion') ? '' : 'none';
+  $('tabGenbank').style.display = (tab === 'genbank') ? '' : 'none';
+  $('tabBtnEscaneo').classList.toggle('active', tab === 'escaneo');
+  $('tabBtnValidacion').classList.toggle('active', tab === 'validacion');
+  $('tabBtnGenbank').classList.toggle('active', tab === 'genbank');
+  $('tabReporte').style.display = (tab === 'reporte') ? '' : 'none';
+  $('tabBtnReporte').classList.toggle('active', tab === 'reporte');
+  $('tabCampo').style.display = (tab === 'campo') ? '' : 'none';
+  $('tabBtnCampo').classList.toggle('active', tab === 'campo');
+  $('tabPaquete').style.display = (tab === 'paquete') ? '' : 'none';
+  $('tabBtnPaquete').classList.toggle('active', tab === 'paquete');
+  $('tabLote').style.display = (tab === 'lote') ? '' : 'none';
+  $('tabBtnLote').classList.toggle('active', tab === 'lote');
+}
+
+
+let genbankActual = null;
+let historialGenbank = [];
+let html5QrCodeGenbank = null;
+let streamFotoGenbank = null;
+const URL_RESPALDO_DRIVE_GENBANK = 'https://script.google.com/macros/s/AKfycbyWgli-1Xm1fW7127lb0klTX6IYVjcDu4olzo9Xenbk46z6YW5G1XrXRVWdxf3l9r321g/exec';
+
+$('scanGenbank').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const code = norm($('scanGenbank').value);
+  if (!code) return;
+  procesarEscaneoGenbank(code);
+  $('scanGenbank').value = '';
+  $('scanGenbank').focus();
+});
+
+function procesarEscaneoGenbank(code) {
+  if (!lotIndex.size) {
+    $('subGenbank').innerHTML = '<span class="hl-bad">Carga Primero el catálogo de lotes desde BMS.</span>';
+      return;
+  }
+  const hit = lotIndex.get(code.toUpperCase());
+  if (!hit) {
+    $('subGenbank').innerHTML = '<span class="hl-bad">No encontrado en el inventario (catálogo de lotes)</span>';
+    genbankActual = null;
+    return;
+  }
+
+  const inv = gidIndex.get(hit.gid);
+  const disponible = inv ? disponibilidadTexto(inv) : '';
+
+  genbankActual = { obs: code, gid: hit.gid, desig: hit.desig, disponible, foto: '' };
+  $('subGenbank').innerHTML  = '<span class="hl-ok">Encontrado en inventario &mdash; confirma contra el sticker</span>';
+  $('kvGenbank').innerHTML = 
+    '<b>LOT UID</b><span class="mono">' + esc(code) + '</span>' +
+    '<b>GID</b><span class="mono">' + esc(hit.gid || '-') + '</span>' +
+    '<b>DESIGNATION</b><span>' + esc(hit.desig || '-') +  '</span>' +
+    '<b>DISPONIBLE</b><span>' + esc(disponible || '-') + '</span>';
+  $('fotoGenbankWrap').style.display = 'block';
+  agregarHistorialGenbank();
+}
+
+function agregarHistorialGenbank() {
+  if (!genbankActual) return;
+  historialGenbank.unshift({ hora: new Date().toLocaleTimeString(), ...genbankActual });
+  renderHistorialGenbank();
+}
+
+function renderHistorialGenbank() {
+  const tb = document.querySelector('#histGenbankTable tbody');
+  tb.innerHTML = '';
+  historialGenbank.forEach(h => {
+    const tr = document.createElement('tr');
+    const fotoCell = h.foto ? '<a href="' + h.foto + '" download="genbank_' + esc(h.obs) + '.jpg">ver</a>' : '&mdash;';
+    tr.innerHTML =
+      '<td>' + esc(h.hora) + '</td>' +
+      '<td class="mono">' + esc(h.obs) + '</td>' +
+      '<td class="mono">' + esc(h.gid|| '-') + '</td>' +
+      '<td>' + esc(h.desig || '-') + '</td>' +
+      '<td>' + esc(h.disponible || '-') + '</td>' +
+      '<td>' + fotoCell + '</td>';
+    tb.appendChild(tr);
+  });
+}
+
+function limpiarHistorialGenbank() {
+  historialGenbank = [];
+  renderHistorialGenbank();
+}
+
+async function iniciarEscaneoGenbank() {
+  if (!lotIndex.size) {
+    $('subGenbank').innerHTML = '<span class="hl-bad">Carga primero el catálogo de lotes.</span>';
+    return;
+  }
+  $('btnIniciarCamaraGenbank').style.display = 'none';
+  $('btnDetenerCamaraGenbank').style.display = 'inline-block';
+  $('subGenbank').innerHTML = 'Apunta la cámara al código del sticker...';
+
+  html5QrCodeGenbank = new Html5Qrcode('readerGenbank');
+  try {
+    await html5QrCodeGenbank.start(
+      { facingMode: 'environment' },
+      {
+        fps: 10,
+        qrbox: { width: 260, height: 160 },
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.CODE_93, Html5QrcodeSupportedFormats.QR_CODE
+        ]
+      },
+      (decodedText) => {
+        procesarEscaneoGenbank(String(decodedText).trim());
+        detenerEscaneoGenbank(false);
+      },
+      () => {}
+    );
+  } catch (e) {
+    $('subGenbank').innerHTML = '<span class="hl-bad">No se pudo iniciar la cámara: ' + esc((e && (e.message || e.name)) || 'error desconocido') + '</span>';
+    $('btnIniciarCamaraGenbank').style.display = 'inline-block';
+    $('btnDetenerCamaraGenbank').style.display = 'none';
+  }
+}
+
+async function detenerEscaneoGenbank(manual) {
+  if (html5QrCodeGenbank) {
+    try { await html5QrCodeGenbank.stop(); html5QrCodeGenbank.clear(); } catch (e) {}
+    html5QrCodeGenbank = null;
+  }
+  $('btnIniciarCamaraGenbank').style.display = 'inline-block';
+  $('btnDetenerCamaraGenbank').style.display = 'none';
+}
+
+async function tomarFotoGenbank() {
+  $('videoFotoGenbankWrap').style.display = 'block';
+  try {
+    streamFotoGenbank = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    $('videoFotoGenbank').srcObject = streamFotoGenbank;
+  } catch (e) {
+    alert('No se pudo abrir la cámara para la foto: ' + ((e && (e.message || e.name)) || 'error desconocido'));
+  }
+}
+
+function capturarFotoGenbank() {
+  const video = $('videoFotoGenbank');
+  const canvas = $('canvasFotoGenbank');
+  canvas.width = video.videoWidth || 640;
+  canvas.height = video.videoHeight || 480;
+  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+  if (streamFotoGenbank) { streamFotoGenbank.getTracks().forEach(t => t.stop()); streamFotoGenbank = null; }
+  $('videoFotoGenbankWrap').style.display = 'none';
+  $('fotoGenbankWrap').style.display = 'none';
+
+  if (historialGenbank.length) {
+    historialGenbank[0].foto = dataUrl;
+    renderHistorialGenbank();
+    respaldaFotoGenbankADrive(dataUrl, historialGenbank[0]);
+  }
+}
+
+async function respaldaFotoGenbankADrive(dataUrl,registro){
+  if (!URL_RESPALDO_DRIVE_GENBANK )return;
+  const nombreArchivo  = 'genbank_' + (registro.obs || 'sin_codigo') + '_ ' + Date.now() + '.jpg';
+  try {
+    await fetch(URL_RESPALDO_DRIVE_GENBANK, {
+      method: 'POST',
+      body: JSON.stringify({ imagen: dataUrl, nombreArchivo: nombreArchivo })
+    });
+  } catch (e) {
+    console.warn('No se pudo respaldar la foto en Drive:', e);
+  }
+}
+
+/* =========================================================================
+   VALIDACIÓN DE LISTADO CRUDO
+   Usa el mismo gidIndex / uniqueGermplasmList que ya llenó cargarLotesBMS()
+   arriba -- no vuelve a llamar a BMS, solo compara localmente.
+   ========================================================================= */
+let workbook = null;
+let sheetRows = [];   // filas crudas de la hoja seleccionada (array de arrays)
+let headers = [];
+
+const HEADER_ALIASES = {
+  gid: ['gid'],
+  name: ['preferred name', 'preferred_name', 'designation', 'nombre', 'name'],
+  orden: ['orden', 'no.', 'no', 'item', '#'],
+  rol: ['hembra/macho', 'hembra', 'macho', 'sexo', 'role', 'parent type', 'tipo'],
+  peso: ['peso', 'weigth', 'peso (g)', 'gramos', 'g'],
+  ubicacion: ['ubicación', 'ubicacion', 'location', 'lugar', 'locaclización', 'localizacion']
+};
+
+function detectCol(hdrs, aliases) {
+  const normH = hdrs.map(h => normLoose(h));
+  for (const alias of aliases) {
+    const idx = normH.findIndex(h => h === normLoose(alias));
+    if (idx >= 0) return idx;
+  }
+  for (const alias of aliases) {
+    const idx = normH.findIndex(h => h.includes(normLoose(alias)));
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
+
+function fillSelect(selectId, hdrs, guessIdx, optional) {
+  const sel = $(selectId);
+  sel.innerHTML = '';
+  if (optional) {
+    const opt = document.createElement('option');
+    opt.value = '-1'; opt.textContent = '(ninguna)';
+    sel.appendChild(opt);
+  }
+  hdrs.forEach((h, i) => {
+    const opt = document.createElement('option');
+    opt.value = String(i);
+    opt.textContent = h || '(columna ' + (i+1) + ')';
+    sel.appendChild(opt);
+  });
+  sel.value = String(guessIdx >= 0 ? guessIdx : (optional ? -1 : 0));
+}
+
+function loadSheet(idx) {
+  const sheetName = workbook.SheetNames[idx];
+  const ws = workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+  headers = (rows[0] || []).map(h => String(h || '').trim());
+  sheetRows = rows.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
+
+  $('mapGrid').style.display = 'grid';
+  fillSelect('colGid', headers, detectCol(headers, HEADER_ALIASES.gid), false);
+  fillSelect('colName', headers, detectCol(headers, HEADER_ALIASES.name), false);
+  fillSelect('colOrden', headers, detectCol(headers, HEADER_ALIASES.orden), true);
+  fillSelect('colRol', headers, detectCol(headers, HEADER_ALIASES.rol), true);
+  fillSelect('colPeso', headers, detectCol(headers, HEADER_ALIASES.peso), true);
+  fillSelect('colUbicacion', headers, detectCol(headers, HEADER_ALIASES.ubicacion), true);
+
+  $('fileStatus').textContent = sheetRows.length + ' filas detectadas en la hoja "' + sheetName + '". Revisa el mapeo de columnas y presiona Validar.';
+  $('btnProcesar').disabled = (gidIndex.size === 0 || sheetRows.length === 0);
+}
+
+$('fileInput').addEventListener('change', (ev) => {
+  const file = ev.target.files[0];
+  if (!file) return;
+  $('fileStatus').textContent = 'Leyendo archivo...';
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      workbook = XLSX.read(e.target.result, { type: 'array' });
+      const picker = $('sheetPicker');
+      picker.innerHTML = '';
+      workbook.SheetNames.forEach((name, i) => {
+        const opt = document.createElement('option');
+        opt.value = String(i); opt.textContent = name;
+        picker.appendChild(opt);
+      });
+      $('sheetPickerWrap').style.display = workbook.SheetNames.length > 1 ? 'block' : 'none';
+      loadSheet(0);
+    } catch (err) {
+      $('fileStatus').textContent = 'Error leyendo el archivo: ' + err.message;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+$('sheetPicker').addEventListener('change', (ev) => loadSheet(parseInt(ev.target.value, 10)));
+
+function levenshtein(a, b) {
+  const al = a.length, bl = b.length;
+  if (al === 0) return bl;
+  if (bl === 0) return al;
+  let prev = new Array(bl + 1), curr = new Array(bl + 1);
+  for (let j = 0; j <= bl; j++) prev[j] = j;
+  for (let i = 1; i <= al; i++) {
+    curr[0] = i;
+    const ca = a.charCodeAt(i - 1);
+    for (let j = 1; j <= bl; j++) {
+      const cost = (ca === b.charCodeAt(j - 1)) ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[bl];
+}
+
+function buscarPorNombre(nameTight) {
+  const candidatos = [];
+  for (const g of uniqueGermplasmList) {
+    if (Math.abs(g.desigTight.length - nameTight.length) > 4) continue;
+    const dist = levenshtein(nameTight, g.desigTight);
+    if (dist <= 4) candidatos.push({ gid: g.gid, desig: g.desigOriginal, dist });
+  }
+  candidatos.sort((a, b) => a.dist - b.dist);
+  return candidatos.slice(0, 3);
+}
+
+function disponibilidadTexto(entry) {
+  if (!entry) return '';
+  const cant = Math.round(entry.totalAvailable * 100) / 100;
+  const unidadTxt = (entry.unidades && entry.unidades.size) ? ' ' + Array.from(entry.unidades).join('/') : '';
+  if (cant > 0) return cant + unidadTxt + ' (en ' + entry.lotCount + (entry.lotCount === 1 ? ' lote' : ' lotes') + ')';
+  if (entry.anyOpen) return '0' + unidadTxt + ' (lote abierto, sin saldo)';
+  return '0' + unidadTxt + ' (sin existencia / cerrado)';
+}
+
+function anioTexto(entry) {
+  if (!entry || !entry.anios || !entry.anios.size) return '';
+  return Array.from(entry.anios).sort().join(' / ');
+}
+
+function ubicacionTexto(entry) {
+  if (!entry || !entry.ubicaciones || !entry.ubicaciones.size) return '';
+  return Array.from(entry.ubicaciones).sort().join(' / ');
+}
+
+// Si el nombre coincide perfecto (estado 'ok') pero el GID no tiene semilla
+// disponible, esto igual merece una advertencia visible -- no es un error
+// de datos, pero sí algo que hay que revisar antes de ir al campo.
+function conAlertaStock(estado, entry, detalle) {
+  if (estado === 'ok' && entry && entry.totalAvailable <= 0) {
+    return { estado: 'ok_sin_stock', detalle: detalle + ' · SIN EXISTENCIA DISPONIBLE' };
+  }
+  return { estado, detalle };
+}
+
+/* =========================================================================
+   NOMBRES ALTERNOS POR GID (CRSNM / LNAME / etc.)
+   Endpoint confirmado: GET /crops/{crop}/germplasm/{gid}?programUUID=X
+   Solo se consulta para los GID que realmente aparecen en el archivo subido
+   (no para los ~50,000 del catálogo completo -- sería lento e innecesario).
+   Se prueba primero sin programUUID; si falla, se reintenta con cada
+   programUUID detectado (ver cargarProgramasBMS), igual que el resto de
+   la herramienta.
+   ========================================================================= */
+let germplasmNamesCache = new Map(); // gid (string) -> {CRSNM:'...', LNAME:'...', ...} o null si no se pudo obtener
+
+function extraerNombresPorTipo(d) {
+  const out = {};
+  if (d && Array.isArray(d.names)) {
+    d.names.forEach(n => {
+      const code = String(n.nameTypeCode || '').toUpperCase();
+      if (code && code !== 'PED' && n.name && !out[code]) out[code] = n.name;
+    });
+  }
+  return out;
+}
+
+async function obtenerNombresGermplasma(gid) {
+  if (germplasmNamesCache.has(gid)) return germplasmNamesCache.get(gid);
+  const { crop } = cfg();
+  const programUUIDs = [null].concat(programasDisponibles.map(p => p.programUUID).filter(Boolean));
+  let nombres = {};
+  for (const puuid of programUUIDs) {
+    const qs = puuid ? ('?programUUID=' + encodeURIComponent(puuid)) : '';
+    try {
+      const r = await nativeFetch('/bmsapi/crops/' + crop + '/germplasm/' + encodeURIComponent(gid), { qs }, 'debugValidacion');
+      if (r.ok) {
+        const d = await r.json();
+        nombres = extraerNombresPorTipo(d);
+        if (Object.keys(nombres).length) break;
+      }
+    } catch (e) {
+      dbg('debugValidacion', 'GID ' + gid + ' (programUUID=' + puuid + ') -> error: ' + e.message);
+    }
+  }
+  germplasmNamesCache.set(gid, nombres);
+  return nombres;
+}
+
+// Usa el mismo endpoint confirmado GET /crops/{crop}/germplasm/{gid} (con
+// capturas de Network reales para el GID 72961) para dos cosas de la pestaña
+// "Asignar LOT_UID por GID":
+//  (a) distinguir, cuando un GID no aparece en el catálogo de lotes, entre
+//      "el GID sí existe en BMS pero todavía no le han creado el lote"
+//      (normal para GID de cosecha recién generados) y "el GID de plano no
+//      existe en BMS" (posible error de escaneo/etiqueta); y
+//  (b) sacar el origen del germoplasma (germplasmOrigins / gpid1 / gpid2)
+//      para la verificación de la Etiqueta 2 (OBS_UNIT_ID del padre), sin
+//      tener que cargar ningún vivero: BMS ya trae directo, por cada
+//      progenitor inmediato, su observationUnitId, studyName y studyId.
+// Se cachea el detalle crudo para no repetir la consulta si se escanea el
+// mismo GID otra vez (por ejemplo al reintentar la Etiqueta 1).
+let germplasmDetalleCache = new Map(); // gid -> objeto crudo de BMS, o null si no existe
+
+async function obtenerGermplasmaDetalle(gid) {
+  if (germplasmDetalleCache.has(gid)) return germplasmDetalleCache.get(gid);
+  const { crop } = cfg();
+  const programUUIDs = [null].concat(programasDisponibles.map(p => p.programUUID).filter(Boolean));
+  let detalle = null;
+  for (const puuid of programUUIDs) {
+    const qs = puuid ? ('?programUUID=' + encodeURIComponent(puuid)) : '';
+    try {
+      const r = await nativeFetch('/bmsapi/crops/' + crop + '/germplasm/' + encodeURIComponent(gid), { qs }, 'debugLote');
+      if (r.ok) {
+        const d = await r.json();
+        if (d && (d.gid != null || d.germplasmDbId || d.germplasmUUID || Array.isArray(d.names))) { detalle = d; break; }
+      }
+    } catch (e) {
+      dbg('debugLote', 'obtenerGermplasmaDetalle GID ' + gid + ' (programUUID=' + puuid + ') -> error: ' + e.message);
+    }
+  }
+  germplasmDetalleCache.set(gid, detalle);
+  return detalle;
+}
+
+async function existeGermplasmaBMS(gid) {
+  return !!(await obtenerGermplasmaDetalle(gid));
+}
+
+// Extrae, del detalle crudo, la lista de orígenes inmediatos (cada uno con
+// su OBS_UNIT_ID -- esto es lo que se compara contra la Etiqueta 2) y el/los
+// GID de los padres (gpid1/gpid2; iguales si es autofecundación).
+function extraerOrigenGermplasma(d) {
+  if (!d) return null;
+  const origins = Array.isArray(d.germplasmOrigins) ? d.germplasmOrigins.map(o => ({
+    observationUnitId: String(o.observationUnitId || ''),
+    progenitorType: String(o.progenitorType || ''),
+    studyName: String(o.studyName || ''),
+    studyId: o.studyId != null ? String(o.studyId) : ''
+  })).filter(o => o.observationUnitId) : [];
+  return {
+    gpid1: d.gpid1 != null ? String(d.gpid1) : '',
+    gpid2: d.gpid2 != null ? String(d.gpid2) : '',
+    breedingMethod: d.breedingMethod || '',
+    origins
+  };
+}
+
+async function obtenerOrigenGermplasma(gid) {
+  return extraerOrigenGermplasma(await obtenerGermplasmaDetalle(gid));
+}
+
+function evaluarFila(gidRaw, nameRaw) {
+  const gid = String(gidRaw == null ? '' : gidRaw).trim().replace(/\.0$/, '');
+  const name = String(nameRaw == null ? '' : nameRaw).trim();
+
+  if (!gid && !name) {
+    return { estado: 'fila_invalida', gidBMS: '', desigBMS: '', disponible: '', anio: '', ubicacionBMS: '', detalle: 'Fila sin GID ni Nombre' };
+  }
+
+  if (gid) {
+    const entry = gidIndex.get(gid);
+    if (!entry) {
+      return { estado: 'gid_no_encontrado', gidBMS: '', desigBMS: '', disponible: '', anio: '', ubicacionBMS: '', detalle: 'GID ' + gid + ' no existe en el catálogo de lotes cargado' };
+    }
+    if (!name) {
+      const av = conAlertaStock('ok', entry, 'GID encontrado (sin nombre en el archivo para comparar)');
+      return { estado: av.estado, gidBMS: gid, desigBMS: entry.desigOriginal, disponible: disponibilidadTexto(entry), anio: anioTexto(entry), ubicacionBMS: ubicacionTexto(entry), detalle: av.detalle };
+    }
+
+
+    // Candidatos de nombre para este GID: el de lots/search (normalmente
+    // LNAME) + los que trajo /germplasm/{gid} (CRSNM, LNAME, etc.),
+    // deduplicados por valor.
+    const extra = germplasmNamesCache.get(gid) || {};
+    const candidatos = [{ tipo: 'DESIGNATION', valor: entry.desigOriginal }];
+    Object.keys(extra).forEach(tipo => candidatos.push({ tipo, valor: extra[tipo] }));
+    const vistos = new Set();
+    const candidatosUnicos = candidatos.filter(c => {
+      const t = normTight(c.valor);
+      if (!t || vistos.has(t)) return false;
+      vistos.add(t);
+      return true;
+    });
+
+    const nTight = normTight(name);
+    const exacto = candidatosUnicos.find(c => normTight(c.valor) === nTight);
+    if (exacto) {
+      const av = conAlertaStock('ok', entry, 'Coincidencia exacta con ' + exacto.tipo + ' ("' + exacto.valor + '")');
+      return { estado: av.estado, gidBMS: gid, desigBMS: exacto.valor, disponible: disponibilidadTexto(entry), anio: anioTexto(entry), ubicacionBMS: ubicacionTexto(entry), detalle: av.detalle };
+    }
+
+    let mejor = null;
+    candidatosUnicos.forEach(c => {
+      const d = levenshtein(nTight, normTight(c.valor));
+      if (!mejor || d < mejor.dist) mejor = { tipo: c.tipo, valor: c.valor, dist: d };
+    });
+    if (mejor && mejor.dist <= 2) {
+      return { estado: 'ok_typo', gidBMS: gid, desigBMS: mejor.valor, disponible: disponibilidadTexto(entry), anio: anioTexto(entry), ubicacionBMS: ubicacionTexto(entry), detalle: 'Posible error de tipeo contra ' + mejor.tipo + ' (distancia ' + mejor.dist + '): archivo dice "' + name + '", BMS dice "' + mejor.valor + '"' };
+    }
+    const listaNombres = candidatosUnicos.map(c => c.tipo + '="' + c.valor + '"').join(', ');
+    return { estado: 'nombre_no_coincide', gidBMS: gid, desigBMS: entry.desigOriginal, disponible: disponibilidadTexto(entry), anio: anioTexto(entry), ubicacionBMS: ubicacionTexto(entry), detalle: 'El nombre no coincide con ninguno de los nombres en BMS (' + listaNombres + '): archivo dice "' + name + '"' };
+  }
+
+  const nTight = normTight(name);
+  const cands = buscarPorNombre(nTight);
+  if (!cands.length) {
+    return { estado: 'nombre_no_encontrado', gidBMS: '', desigBMS: '', disponible: '', anio: '', ubicacionBMS: '', detalle: 'Sin GID en el archivo; no se halló ninguna coincidencia cercana por nombre en el catálogo' };
+  }
+  if (cands[0].dist === 0) {
+    const entryCand = gidIndex.get(cands[0].gid);
+    return { estado: 'revisar_sin_gid', gidBMS: cands[0].gid, desigBMS: cands[0].desig, disponible: disponibilidadTexto(entryCand), anio: anioTexto(entryCand), ubicacionBMS: ubicacionTexto(entryCand), detalle: 'Sin GID en el archivo, pero el nombre coincide exacto con GID ' + cands[0].gid + ' en BMS' };
+  }
+  const entryCand = gidIndex.get(cands[0].gid);
+  const lista = cands.map(c => 'GID ' + c.gid + ' ("' + c.desig + '", distancia ' + c.dist + ')').join('; ');
+  return { estado: 'revisar_sin_gid_aprox', gidBMS: cands[0].gid, desigBMS: cands[0].desig, disponible: disponibilidadTexto(entryCand), anio: anioTexto(entryCand), ubicacionBMS: ubicacionTexto(entryCand), detalle: 'Sin GID en el archivo; candidatos cercanos: ' + lista };
+}
+
+const ESTADO_INFO = {
+  ok:                     { tag: 'ok',   texto: 'OK' },
+  ok_sin_stock:           { tag: 'warn', texto: 'OK, sin existencia' },
+  ok_typo:                { tag: 'warn', texto: 'Posible tipeo' },
+  nombre_no_coincide:     { tag: 'bad',  texto: 'Nombre no coincide' },
+  gid_no_encontrado:      { tag: 'bad',  texto: 'GID no encontrado' },
+  revisar_sin_gid:        { tag: 'warn', texto: 'Falta GID (match exacto)' },
+  revisar_sin_gid_aprox:  { tag: 'warn', texto: 'Falta GID (revisar candidatos)' },
+  nombre_no_encontrado:   { tag: 'bad',  texto: 'No encontrado' },
+  fila_invalida:          { tag: 'gray', texto: 'Fila inválida' }
+};
+
+// Ejecuta `tarea` para cada elemento de `items`, con un máximo de `limite`
+// peticiones en vuelo al mismo tiempo (en vez de una por una en serie).
+async function conConcurrencia(items, limite, tarea, onProgreso) {
+  let indice = 0;
+  let completados = 0;
+  const total = items.length;
+
+  async function trabajador() {
+    while (indice < total) {
+      const miIndice = indice++;
+      await tarea(items[miIndice]);
+      completados++;
+      if (onProgreso) onProgreso(completados, total);
+    }
+  }
+
+  const trabajadores = Array.from({ length: Math.min(limite, total) }, () => trabajador());
+  await Promise.all(trabajadores);
+}
+
+let ultimosResultados = [];
+
+async function procesarListado() {
+  const idxGid = parseInt($('colGid').value, 10);
+  const idxName = parseInt($('colName').value, 10);
+  const idxOrden = parseInt($('colOrden').value, 10);
+  const idxRol = parseInt($('colRol').value, 10);
+  const idxPeso = parseInt($('colPeso').value,10);
+  const idxUbicacion = parseInt($('colUbicacion').value,10);
+
+  $('btnProcesar').disabled = true;
+
+  // Paso 1: consultar en BMS los nombres alternos (CRSNM/LNAME) de cada GID
+  // único del archivo -- uno por uno, con caché, solo para las filas que
+  // sí traen GID.
+  const gidsUnicos = [...new Set(sheetRows.map(row => {
+    const raw = idxGid >= 0 ? row[idxGid] : '';
+    return String(raw == null ? '' : raw).trim().replace(/\.0$/, '');
+  }).filter(Boolean))];
+
+  await conConcurrencia(gidsUnicos, 15, gid => obtenerNombresGermplasma(gid), (hechos, total) => {
+    $('procesarStatus').innerHTML = '<span class="spinner-inline"></span> Consultando nombres alternos en BMS... ' + hechos + '/' + total;
+  });
+
+  // Paso 2: evaluar cada fila ya con los nombres alternos en caché
+  ultimosResultados = sheetRows.map((row, i) => {
+    const gidRaw = idxGid >= 0 ? row[idxGid] : '';
+    const nameRaw = idxName >= 0 ? row[idxName] : '';
+    const orden = idxOrden >= 0 ? row[idxOrden] : (i + 1);
+    const rol = idxRol >= 0 ? row[idxRol] : '';
+    const pesoArchivo = idxPeso >= 0 ? row[idxPeso] : '';
+    const ubicacionArchivo = idxUbicacion >= 0 ? row[idxUbicacion] : '';
+    const res = evaluarFila(gidRaw, nameRaw);
+    return Object.assign({ orden, rol, pesoArchivo, ubicacionArchivo, gidArchivo: gidRaw, nombreArchivo: nameRaw }, res);
+  });
+
+  renderResultadosValidacion();
+  $('btnProcesar').disabled = false;
+}
+$('btnProcesar').addEventListener('click', procesarListado);
+
+function renderResultadosValidacion() {
+  const tbody = document.querySelector('#resultTable tbody');
+  tbody.innerHTML = '';
+  let cOk = 0, cWarn = 0, cBad = 0;
+
+  ultimosResultados.forEach(r => {
+    const info = ESTADO_INFO[r.estado];
+    let rowClass = 'row-gray';
+    if (info.tag === 'ok') { rowClass = 'row-ok'; cOk++; }
+    else if (info.tag === 'warn') { rowClass = 'row-warn'; cWarn++; }
+    else if (info.tag === 'bad') { rowClass = 'row-bad'; cBad++; }
+
+    const tr = document.createElement('tr');
+    tr.className = rowClass;
+    tr.innerHTML =
+      '<td>' + esc(r.orden) + '</td>' +
+      '<td>' + esc(r.rol) + '</td>' +
+      '<td>' + esc(r.gidArchivo) + '</td>' +
+      '<td>' + esc(r.nombreArchivo) + '</td>' +
+      '<td>' + esc(r.gidBMS) + '</td>' +
+      '<td>' + esc(r.desigBMS) + '</td>' +
+      '<td>' + esc(r.disponible) + '</td>' +
+      '<td>' + esc(r.ubicacionBMS || '-') + '</td>' +
+      '<td>' + esc(r.anio || '-') + '</td>' +
+      '<td><span class="tag ' + info.tag + '">' + info.texto + '</span></td>' +
+      '<td>' + esc(r.detalle) + '</td>';
+    tbody.appendChild(tr);
+  });
+
+  $('summary').style.display = 'flex';
+  $('sTotal').textContent = ultimosResultados.length;
+  $('sOk').textContent = cOk;
+  $('sWarn').textContent = cWarn;
+  $('sBad').textContent = cBad;
+  $('procesarStatus').textContent = 'Validación completa.';
+  $('btnExportValidacion').disabled = ultimosResultados.length === 0;
+}
+
+$('btnExportValidacion').addEventListener('click', () => {
+  const cols = ['Orden','Rol','GID archivo','Nombre archivo','GID BMS','Designation BMS','Disponible','Ubicación','Año','Estado','Detalle'];
+  const lines = [cols.join(',')];
+  ultimosResultados.forEach(r => {
+    const info = ESTADO_INFO[r.estado];
+    const vals = [r.orden, r.rol, r.gidArchivo, r.nombreArchivo, r.gidBMS, r.desigBMS, r.disponible, r.ubicacionBMS, r.anio, info.texto, r.detalle]
+      .map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"');
+    lines.push(vals.join(','));
+  });
+  const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'validacion_listado_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+});
+
+let reportRows = [];
+
+function generarReporteEKGenbank() {
+  if (!ultimosResultados.length) {
+    $('statusReporte').innerHTML = '<span class="hl-bad">Primero valida un listado en la pestaña "Validar Listado Crudo".</span>';
+    return;
+  }
+
+  const escaneosPorGid = new Map();
+  historialGenbank.forEach(h => {
+    if (!h.gid) return;
+    let e = escaneosPorGid.get(h.gid);
+    if (!e) { e = { veces: 0, ultimaHora: '', fotos: [] }; escaneosPorGid.set(h.gid, e); }
+    e.veces++;
+    if (!e.ultimaHora) e.ultimaHora = h.hora;
+    if (h.foto) e.fotos.push(h.foto);
+  });
+
+    // Agrupamos por GID: si el archivo trae el mismo material repartido en
+  // varias filas (una por lote/sobre), aquí se une en UNA sola fila del
+  // reporte -- sumando el peso y juntando las ubicaciones, en vez de
+  // repetir la fila una vez por cada lote.
+  const porGid = new Map();
+  ultimosResultados
+    .filter(r => r.gidBMS)
+    .forEach(r => {
+      let g = porGid.get(r.gidBMS);
+      if (!g) {
+        g = {
+          orden: r.orden,
+          gid: r.gidBMS,
+          nombre: r.desigBMS,
+          disponible: r.disponible,
+          ubicacionBMS: r.ubicacionBMS || '',
+          pesoArchivo: 0,
+          ubicaciones: new Set(),
+          estadoValidacion: ESTADO_INFO[r.estado].texto
+        };
+        porGid.set(r.gidBMS, g);
+      }
+      const p = Number(r.pesoArchivo);
+      if (!isNaN(p)) g.pesoArchivo += p;
+      if (r.ubicacionArchivo) g.ubicaciones.add(r.ubicacionArchivo);
+    });
+
+  reportRows = Array.from(porGid.values()).map(g => {
+    const e = escaneosPorGid.get(g.gid);
+    return {
+      orden: g.orden,
+      gid: g.gid,
+      nombre: g.nombre,
+      disponible: g.disponible,
+      ubicacionBMS: g.ubicacionBMS || '',
+      pesoArchivo: g.pesoArchivo || '',
+      ubicacionArchivo: Array.from(g.ubicaciones).join(' / '),
+      estadoValidacion: g.estadoValidacion,
+      veces: e ? e.veces : 0,
+      ultimaHora: e ? e.ultimaHora : '',
+      fotos: e ? e.fotos : []
+    };
+  });
+
+  $('statusReporte').textContent = '';
+  renderReporte();
+}
+
+function renderReporte() {
+  const tbody = document.querySelector('#reporteTable tbody');
+  tbody.innerHTML = '';
+  let escaneados = 0;
+  reportRows.forEach(r => {
+    const ok = r.veces > 0;
+    if (ok) escaneados++;
+    const tr = document.createElement('tr');
+    tr.className = ok ? 'row-ok' : 'row-bad';
+    const fotoCell = r.fotos.length
+      ? r.fotos.map((f, i) => '<a href="' + f + '" download="genbank_' + esc(r.gid) + '_' + i + '.jpg">ver' + (r.fotos.length > 1 ? ' ' + (i + 1) : '') + '</a>').join(' &middot; ')
+      : '&mdash;';
+
+    tr.innerHTML =
+      '<td>' + esc(r.orden) + '</td>' +
+      '<td class="mono">' + esc(r.gid) + '</td>' +
+      '<td>' + esc(r.nombre) + '</td>' +
+      '<td>' + esc(r.disponible) + '</td>' +
+      '<td>' + esc(r.ubicacionBMS || '-') + '</td>' +
+      '<td>' + esc(r.pesoArchivo || '-') + '</td>' +
+      '<td>' + esc(r.ubicacionArchivo || '-') + '</td>' +
+      '<td>' + esc(r.estadoValidacion) + '</td>' +
+      '<td>' + (ok ? '<span class="hl-ok">Sí (' + r.veces + ')</span>' : '<span class="hl-bad">No</span>') + '</td>' +
+      '<td>' + esc(r.ultimaHora || '-') + '</td>' +
+      '<td>' + fotoCell + '</td>';
+    tbody.appendChild(tr);
+  });
+  $('summaryReporte').style.display = 'flex';
+  $('sTotalReporte').textContent = reportRows.length;
+  $('sEscaneadoReporte').textContent = escaneados;
+  $('sPendienteReporte').textContent = reportRows.length - escaneados;
+  $('btnExportReporte').disabled = reportRows.length === 0;
+}
+
+function exportarReporte() {
+  if (!reportRows.length) { alert('No hay reporte generado.'); return; }
+  const headers = ['Orden', 'GID', 'Nombre BMS', 'Disponible', 'Ubicación (BMS)', 'Peso (archivo EK)', 'Ubicación (archivo EK)', 'Estado validación EK', 'Escaneado en Genbank', 'Veces', 'Última hora'];
+  const rows = [headers.join(',')];
+  reportRows.forEach(r => {
+    const vals = [r.orden, r.gid, r.nombre, r.disponible, r.ubicacionBMS, r.pesoArchivo, r.ubicacionArchivo, r.estadoValidacion, r.veces > 0 ? 'Sí' : 'No', r.veces, r.ultimaHora];
+    rows.push(vals.map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"').join(','));
+  });
+  const csv = '\uFEFF' + rows.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'reporte_ek_genbank_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+}
+
+/* =========================================================================
+   VERIFICACIÓN CAMPO
+   =========================================================================
+   Chequeo de seguridad en laboratorio (no en campo): se sube el mapa de
+   siembra ya generado (Backcross/Self con GID, o Finca/Registro/Screening/
+   Parent Testing con varias localidades) y se escanean los sobres (OBS
+   UNIT ID) en el mismo orden del mapa.
+
+   Detección de tipo: si el libro tiene una hoja llamada exactamente
+   "FIELD MAP" -> una sola localidad, formato con GID (Backcross/Self).
+   Si no -> cada hoja es una localidad distinta (Finca/Registro/Screening/
+   Parent Testing), sin GID; el nombre de la localidad se lee del campo
+   "Field Location" dentro de cada hoja.
+
+   El OBS_UNIT_ID no viene confiablemente en el Excel (se confirmó que solo
+   un archivo de ejemplo lo traía, por excepción), así que se resuelve
+   conectando a BMS por localidad: se busca el Study, se elige el ambiente
+   (studyDbId) cuya variable LOCATION_NAME coincida con el "Field Location"
+   leído del Excel, se cargan sus observationunits, y se cruza por
+   PLOT_CODE (tipos con GID) o PLOT_NO (tipos sin GID) para obtener el
+   OBS_UNIT_ID real de cada Plot.
+
+   IMPORTANTE (encontrado probando contra BMS real): el código impreso en
+   el sobre físico no siempre corresponde a observationUnitDbId -- según
+   la versión/configuración de BMS puede ser observationUnitName o
+   observationUnitPUI (misma situación ya documentada en "Origen vs
+   Experimento" -> indexarObsUnit(), que por eso indexa bajo los 3
+   campos). Aquí se hace lo mismo: cada Plot puede tener varios "alias" de
+   OBS_UNIT_ID, y CUALQUIERA de ellos debe reconocer el mismo Plot al
+   escanear.
+
+   Por esto el ORDEN esperado de escaneo se controla por PLOT (no por el
+   valor de OBS_UNIT_ID escaneado): campoOrdenEsperado es la lista de
+   códigos de Plot en orden ascendente numérico, y campoRegPorPlot guarda
+   el registro real (con su <td> del grid) por Plot. campoMapaIndex es
+   solo el índice de búsqueda al escanear (alias de OBS_UNIT_ID -> mismo
+   registro), y puede tener más entradas que Plots si un Plot tiene varios
+   alias.
+
+   SUPUESTO A CONFIRMAR: el orden correcto de los sobres es el orden
+   numérico ascendente del código de Plot (G1201, G1202... o Plot-1,
+   Plot-2...), no el orden visual serpentín de la hoja.
+   ========================================================================= */
+
+let campoWorkbook = null;
+let campoLocalidades = [];      // [{sheetName, fieldLocation, estudio, rows}]
+let campoMapaIndex = new Map(); // alias de OBS_UNIT_ID (mayúsculas) -> registro (varios alias pueden compartir registro)
+let campoRegPorPlot = new Map(); // Plot code (mayúsculas) -> registro -- para orden y mensajes "se esperaba"
+let campoOrdenEsperado = [];    // [Plot code,...] orden ascendente esperado, POR PLOT (no por OBS_UNIT_ID)
+let campoPuntero = 0;
+let campoHistorial = [];
+let campoTieneGid = false;
+let campoObsIndex = new Map();  // PLOT_CODE o PLOT_NO (mayúsculas) -> [alias de OBS_UNIT_ID], para la localidad activa
+
+// Extrae pares "Etiqueta: Valor" en cualquier orden -- funciona tanto para
+// "Plot:X GID:Y Role:Z Entry:W" (Backcross) como para
+// "Plot Code:X Plot No:Y GID:Z Entry:W" (Self), sin importar el orden ni
+// si trae Role o no. Si no hay ningún ":" (formato Finca/Registro/
+// Screening/Parent Testing), cae al parseo por líneas de siempre.
+function parseCeldaMapaCampo(raw) {
+  if (raw == null) return null;
+  const text = String(raw).trim();
+  if (!text) return null;
+
+  const pares = {};
+  const regexPar = /([A-Za-zÁÉÍÓÚáéíóúñÑ][A-Za-zÁÉÍÓÚáéíóúñÑ\s]{0,20}?):\s*(\S+)/g;
+  let m;
+  while ((m = regexPar.exec(text)) !== null) {
+    const etiqueta = m[1].trim().toLowerCase().replace(/\s+/g, ' ');
+    pares[etiqueta] = m[2].trim();
+  }
+
+  const plot = pares['plot code'] || pares['plot'] || null;
+  if (plot) {
+    const gid = pares['gid'] || '';
+    const rol = pares['role'] || pares['rol'] || '';
+    const entry = pares['entry'] || '';
+    const plotNo = pares['plot no'] || '';
+    return { plot, plotNo, entry, gid, rol, tieneGid: !!gid };
+  }
+
+  // Formato "PLOT_CODE<codigo>    GID: <gid>" (algunos exports Backcross/Self
+  // no ponen ":" después de "PLOT_CODE", solo lo pegan o lo separan por un
+  // espacio del código real -- por eso el regexPar de arriba no lo detecta,
+  // ya que exige ":" tras la etiqueta. Se ve en la práctica: unas fajas del
+  // mismo archivo traen "PLOT_CODE G4216 GID: 71756" (con espacio) y otras
+  // "PLOT_CODEG3981 GID: 71384" (sin espacio) -- \s* cubre ambos casos.
+  const mPlotCode = text.match(/PLOT_CODE\s*(\S+?)\s+GID:\s*(\S+)/i);
+  if (mPlotCode) {
+    return {
+      plot: mPlotCode[1],
+      plotNo: pares['plot no'] || '',
+      entry: pares['entry'] || '',
+      gid: mPlotCode[2],
+      rol: pares['role'] || pares['rol'] || '',
+      tieneGid: true
+    };
+  }
+
+  // Formato "Plot-72\nEntry 21\nRep 2" (Finca / Registro / Screening / Parent Testing)
+  const lineas = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  let plot2 = null, entry2 = '';
+  lineas.forEach(l => {
+    let mm;
+    if ((mm = l.match(/^Plot[-:\s]*(\S+)/i))) plot2 = mm[1];
+    else if ((mm = l.match(/^Entry[:\s]*(\S+)/i))) entry2 = mm[1];
+  });
+  if (plot2) return { plot: plot2, plotNo: '', entry: entry2, gid: '', rol: '', tieneGid: false };
+
+  return null;
+}
+
+function plotNumeroCampo(p) {
+  const m = String(p).match(/(\d+)/);
+  return m ? parseInt(m[1], 10) : Number.MAX_SAFE_INTEGER;
+}
+
+// Busca el valor asociado a una etiqueta tipo "Field Location" (la etiqueta
+// y el valor pueden venir separados por 1 o varias columnas por celdas
+// combinadas). Se detiene si encuentra otra etiqueta conocida antes de
+// hallar un valor real (pasa cuando el campo viene vacío, ej. "Field Name").
+const ETIQUETAS_CONOCIDAS_CAMPO = [
+  'field location','field name','block name','block capacity','rows per plot',
+  'surcos per plot','columns','starting coordinates','plot layout order',
+  'row capacity of planting machine'
+];
+function extraerEtiquetaCampo(rows, etiqueta, maxCols) {
+  maxCols = maxCols || 6;
+  const obj = etiqueta.toLowerCase();
+  for (let r = 0; r < rows.length; r++) {
+    const row = rows[r] || [];
+    for (let c = 0; c < row.length; c++) {
+      if (String(row[c] ?? '').trim().toLowerCase() === obj) {
+        for (let cc = c + 1; cc < Math.min(row.length, c + 1 + maxCols); cc++) {
+          const vTxt = String(row[cc] ?? '').trim();
+          if (!vTxt) continue;
+          if (ETIQUETAS_CONOCIDAS_CAMPO.includes(vTxt.toLowerCase())) return '';
+          return vTxt;
+        }
+        return '';
+      }
+    }
+  }
+  return '';
+}
+
+function extraerEstudioCampo(rows) {
+  for (let r = 0; r < rows.length - 1; r++) {
+    const row = rows[r] || [];
+    const idx = row.findIndex(v => String(v ?? '').trim().toLowerCase() === 'study');
+    if (idx >= 0) {
+      for (let rr = r + 1; rr < rows.length; rr++) {
+        const v = (rows[rr] || [])[idx];
+        if (v !== '' && v != null) return String(v).trim();
+      }
+    }
+  }
+  return '';
+}
+
+// Reconoce la cuadrícula del mapa: busca las filas de encabezado
+// ("Rows"/"Surcos" seguido de números 1..N) -- en cualquier columna, ya
+// que en algunos libros (ej. Backcross) la cuadrícula viene corrida una
+// columna a la derecha -- y arma la lista de celdas entre el primer y el
+// último encabezado encontrado.
+// Encabezado de la cuadrícula: acepta "Rows"/"Surcos" solos (como antes) y
+// también etiquetas compuestas bilingües como "Row \ Surco", "Row/Surco",
+// "Rows / Surcos" (visto en el mapa CROSS) -- cualquier combinación de las
+// dos palabras separadas por "/" o "\", o una sola de ellas.
+function esEncabezadoGridMapaCampo(v) {
+  const t = String(v ?? '').trim().toLowerCase();
+  return /^(rows?|surcos?)(\s*[\\/]\s*(rows?|surcos?))?$/.test(t);
+}
+
+function parseGridMapaCampo(rows) {
+  let headerCol = -1;
+  const headerIdxs = [];
+  rows.forEach((row, i) => {
+    if (!row) return;
+    for (let c = 0; c < row.length; c++) {
+      if (esEncabezadoGridMapaCampo(row[c])) {
+        headerIdxs.push(i);
+        if (headerCol === -1) headerCol = c;
+        return;
+      }
+    }
+  });
+  if (!headerIdxs.length || headerCol === -1) return null;
+
+  const inicio = headerIdxs[0];
+  // Algunos exports (Self) repiten la fila de encabezado al final de la
+  // cuadrícula como cierre -- si aparece una segunda vez se usa como límite,
+  // igual que antes. Si no se repite (mapa CROSS: el encabezado solo va
+  // arriba), se procesa hasta el final de la hoja.
+  const fin = headerIdxs.length >= 2 ? headerIdxs[headerIdxs.length - 1] : rows.length;
+  const headerRow = rows[inicio] || [];
+  const columnas = [];
+  for (let c = headerCol + 1; c < headerRow.length; c++) {
+    const v = headerRow[c];
+    if (v === '' || v == null) continue;
+    // Acepta encabezados numéricos puros (1, 2, 3...) y también con la
+    // dirección de siembra pegada, como en mapas serpentín ("1 UP",
+    // "2 DOWN"): basta con que empiece con un número.
+    if (/^\d+/.test(String(v).trim())) columnas.push(c);
+  }
+  if (!columnas.length) return null;
+
+  const filas = [];
+  for (let i = inicio + 1; i < fin; i++) {
+    const row = rows[i] || [];
+    const label = String(row[headerCol] ?? '').trim();
+    if (!label) continue;
+    if (esEncabezadoGridMapaCampo(label)) continue; // fila de cierre repetida
+    filas.push({ label, celdas: columnas.map(c => row[c]) });
+  }
+  if (!filas.length) return null;
+
+  return { numColumnas: columnas.length, filas };
+}
+
+
+function expandirCeldasFusionadas(ws, rows) {
+  const merges = (ws && ws['!merges']) || [];
+  if (!merges.length) return rows;
+
+  // ws['!merges'] usa coordenadas ABSOLUTAS de toda la hoja (fila/columna 0
+  // = A1 real), pero sheet_to_json(ws,{header:1}) devuelve un array indexado
+  // de forma RELATIVA al rango usado (!ref) -- si la hoja tiene contenido
+  // "flotando" antes de la cuadrícula (ej. un resumen arriba, como en los
+  // archivos de Finca/Registro), !ref empieza en una fila > 0 y hay que
+  // restar ese desfase antes de indexar en `rows`. Sin esto, el merge de
+  // una fila termina aplicándose a otra fila (o fuera de rango).
+  const ref = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s: { r: 0, c: 0 } };
+  const rOffset = ref.s.r, cOffset = ref.s.c;
+
+  merges.forEach(m => {
+    const r0 = m.s.r - rOffset, c0 = m.s.c - cOffset;
+    const r1 = m.e.r - rOffset, c1 = m.e.c - cOffset;
+    const valorOrigen = (rows[r0] || [])[c0];
+    if (valorOrigen === undefined || valorOrigen === '') return;
+    for (let r = r0; r <= r1; r++) {
+      if (!rows[r]) continue;
+      for (let c = c0; c <= c1; c++) {
+        if (r === r0 && c === c0) continue;
+        rows[r][c] = valorOrigen;
+      }
+    }
+  });
+  return rows;
+}
+
+// Quita el código entre paréntesis para comparar "SN El Ovejero (SN_OVEJERO)"
+// (como lo guarda BMS) contra el "SN El Ovejero" que viene del Excel.
+function limpiarNombreLocalidad(s) {
+  return normLoose(String(s || '').replace(/\([^)]*\)\s*$/, ''));
+}
+
+// Busca en el detalle de un study la variable de ambiente LOCATION_NAME.
+// PUNTO IMPORTANTE / SIN CONFIRMAR TODAVIA: se asume que viaja en
+// study.environmentParameters (estándar BrAPI v2). Si en este BMS no
+// aparece ahí, revisa el console.log de abajo ("Estudio crudo de Campo")
+// para ver la estructura real y ajustar esta función.
+function extraerLocationNameEstudio(study) {
+  if (Array.isArray(study.environmentParameters)) {
+    const p = study.environmentParameters.find(p => String(p.parameterName || '').toUpperCase() === 'LOCATION_NAME');
+    if (p && p.value) return p.value;
+  }
+  const plano = JSON.stringify(study);
+  const m = plano.match(/"LOCATION_NAME"[^}]*?"value"\s*:\s*"([^"]+)"/i);
+  return m ? m[1] : '';
+}
+
+let _muestraEstudioCampoImpresa = false; // solo diagnóstico
+
+// Busca el studyDbId (ambiente) correcto para una localidad, reutilizando
+// buscarEstudiosEnPrograma() -- la misma búsqueda por programa que ya usa
+// "Origen vs Experimento" -- para no perder estudios creados en un programa
+// distinto al activo por defecto (Mejoramiento / Evaluación).
+async function buscarAmbienteCampoPorLocalidad(estudioNombre, fieldLocation) {
+  const { crop } = cfg();
+  const objetivo = limpiarNombreLocalidad(fieldLocation);
+
+  const programasABuscar = programasDisponibles.filter(p => p.selected);
+  let candidatos = [];
+  const vistos = new Set();
+
+  if (programasABuscar.length) {
+    for (const prog of programasABuscar) {
+      const enEstePrograma = await buscarEstudiosEnPrograma(crop, estudioNombre, prog.programDbId, prog.programName);
+      for (const est of enEstePrograma) {
+        if (vistos.has(est.studyDbId)) continue;
+        vistos.add(est.studyDbId);
+        candidatos.push(est);
+      }
+    }
+  } else {
+    candidatos = await buscarEstudiosEnPrograma(crop, estudioNombre, null, '');
+  }
+
+  if (!candidatos.length) {
+    dbg('debugCampo', 'Ningún estudio encontrado con nombre "' + estudioNombre + '"');
+    return null;
+  }
+
+  // Un solo ambiente (caso Backcross/Self) -> lo usamos directo, no hace
+  // falta comparar LOCATION_NAME.
+    if (candidatos.length === 1) return { studyDbId: candidatos[0].studyDbId, programDbId: candidatos[0].programDbId || '' };
+
+  // Varios ambientes -> el listado paginado normalmente NO trae
+  // environmentParameters completo, así que se pide el detalle de cada
+  // candidato uno por uno para poder leer su LOCATION_NAME real.
+  for (const est of candidatos) {
+    const r = await nativeFetch('/bmsapi/' + crop + '/brapi/v2/studies/' + encodeURIComponent(est.studyDbId), {}, 'debugCampo');
+    if (!r.ok) { dbg('debugCampo', 'studyDbId ' + est.studyDbId + ' -> HTTP ' + r.status); continue; }
+    const d = await r.json();
+    const detalle = d.result || d;
+
+    if (!_muestraEstudioCampoImpresa) {
+      _muestraEstudioCampoImpresa = true;
+      console.log('[Verificación Campo] Estudio crudo de ejemplo (revisa aquí dónde viene LOCATION_NAME):', detalle);
+      dbg('debugCampo', 'Ejemplo de estudio crudo impreso en la consola del navegador (F12 → Console).');
+    }
+
+    const loc = extraerLocationNameEstudio(detalle);
+    dbg('debugCampo', 'Ambiente studyDbId=' + est.studyDbId + ' LOCATION_NAME="' + loc + '"');
+        if (loc && limpiarNombreLocalidad(loc) === objetivo) return { studyDbId: est.studyDbId, programDbId: est.programDbId || '' };
+  }
+
+  dbg('debugCampo', 'Ninguno de los ' + candidatos.length + ' ambientes coincidió con Field Location "' + fieldLocation + '"');
+  return null;
+}
+
+let _muestraObsUnitCampoImpresa = false; // solo diagnóstico
+
+// Carga observationunits de UN studyDbId (una sola localidad/ambiente a la
+// vez, para no cruzar Plots repetidos entre localidades) y arma el mapa
+// PLOT_CODE o PLOT_NO (según tieneGid) -> [alias de OBS_UNIT_ID].
+//
+// IMPORTANTE: se guardan VARIOS alias por Plot (observationUnitDbId,
+// observationUnitName, observationUnitPUI) porque no está confirmado cuál
+// de los tres es el que realmente viene impreso en el sobre físico -- ya
+// se vio en "Origen vs Experimento" (indexarObsUnit) que esto varía. Si al
+// escanear sigue sin encontrar, revisa el console.log de abajo
+// ("Observation unit crudo de Campo") y compara manualmente el valor
+// contra lo impreso en un sobre real.
+async function cargarObsUnitCampoBMS(studyDbId, tieneGid, programDbId) {
+  const { crop } = cfg();
+  campoObsIndex = new Map();
+  let page = 0;
+  const pageSize = 1000;
+  while (true) {
+    let qs = '?studyDbId=' + encodeURIComponent(studyDbId) + '&page=' + page + '&pageSize=' + pageSize;
+    if (programDbId) qs += '&programDbId=' + encodeURIComponent(programDbId);
+    const r = await nativeFetch('/bmsapi/' + crop + '/brapi/v2/observationunits', { qs }, 'debugCampo');
+    if (!r.ok) { dbg('debugCampo', 'observationunits página ' + page + ' falló HTTP ' + r.status); break; }
+    const d = await r.json();
+    const recs = (d.result && d.result.data) || [];
+    if (!recs.length) break;
+    recs.forEach(rec => {
+      if (!_muestraObsUnitCampoImpresa) {
+        _muestraObsUnitCampoImpresa = true;
+        console.log('[Verificación Campo] Observation unit crudo de ejemplo (compara estos 3 campos contra el sobre físico):', {
+          observationUnitDbId: rec.observationUnitDbId,
+          observationUnitName: rec.observationUnitName,
+          observationUnitPUI: rec.observationUnitPUI
+        });
+        dbg('debugCampo', 'Ejemplo de OBS UNIT: DbId="' + (rec.observationUnitDbId||'') + '" Name="' + (rec.observationUnitName||'') + '" PUI="' + (rec.observationUnitPUI||'') + '"');
+      }
+      let claveCruce = '';
+      try {
+        const pos = rec.observationUnitPosition || {};
+        const rel = pos.observationLevelRelationships || [];
+        const campoNombre = tieneGid ? 'PLOT_CODE' : 'PLOT_NO';
+        const hit = rel.find(l => l.levelName === campoNombre);
+        if (hit) claveCruce = hit.levelCode || '';
+      } catch (e) {}
+      if (!claveCruce) return;
+
+      const alias = [rec.observationUnitDbId, rec.observationUnitName, rec.observationUnitPUI]
+        .filter(Boolean).map(String);
+      if (alias.length) campoObsIndex.set(String(claveCruce).toUpperCase(), alias);
+    });
+    if (recs.length < pageSize) break;
+    page++;
+    if (page > 60) break;
+  }
+  dbg('debugCampo', 'OBS UNIT cargados para studyDbId ' + studyDbId + ': ' + campoObsIndex.size + ' plot(s)');
+}
+
+$('fileInputCampo').addEventListener('change', (ev) => {
+  const file = ev.target.files[0];
+  if (!file) return;
+  $('fileStatusCampo').textContent = 'Leyendo archivo...';
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      campoWorkbook = XLSX.read(e.target.result, { type: 'array' });
+      prepararLocalidadesCampo();
+    } catch (err) {
+      $('fileStatusCampo').textContent = 'Error leyendo el archivo: ' + err.message;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+function prepararLocalidadesCampo() {
+  const wb = campoWorkbook;
+  campoLocalidades = [];
+
+  const nombreFieldMap = wb.SheetNames.find(n => n.trim().toLowerCase() === 'field map');
+
+  if (nombreFieldMap) {
+    // Backcross / Self: una sola localidad. "Field Location" puede estar
+    // en la misma hoja "FIELD MAP" o en una hoja "SUMMARY" aparte.
+    const rowsMapa = XLSX.utils.sheet_to_json(wb.Sheets[nombreFieldMap], { header: 1, raw: false, defval: '' });
+    expandirCeldasFusionadas(wb.Sheets[nombreFieldMap], rowsMapa);
+    let fieldLocation = extraerEtiquetaCampo(rowsMapa, 'Field Location');
+    let estudio = extraerEstudioCampo(rowsMapa);
+    const nombreSummary = wb.SheetNames.find(n => n.trim().toLowerCase() === 'summary');
+    if (nombreSummary && (!fieldLocation || !estudio)) {
+      const rowsSummary = XLSX.utils.sheet_to_json(wb.Sheets[nombreSummary], { header: 1, raw: false, defval: '' });
+      expandirCeldasFusionadas(wb.Sheets[nombreSummary], rowsSummary);
+      if (!fieldLocation) fieldLocation = extraerEtiquetaCampo(rowsSummary, 'Field Location');
+      if (!estudio) estudio = extraerEstudioCampo(rowsSummary);
+    }
+    campoLocalidades.push({ sheetName: nombreFieldMap, fieldLocation: fieldLocation || nombreFieldMap, estudio, rows: rowsMapa });
+  } else {
+    // Finca / Registro / Screening / Parent Testing: cada hoja es una
+    // localidad distinta con su propia cuadrícula.
+    wb.SheetNames.forEach(n => {
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: '' });
+      expandirCeldasFusionadas(wb.Sheets[n], rows);
+      const grid = parseGridMapaCampo(rows);
+      if (!grid) return; // hoja sin estructura de mapa reconocible, se ignora
+      const fieldLocation = extraerEtiquetaCampo(rows, 'Field Location') || n;
+      const estudio = extraerEstudioCampo(rows);
+      campoLocalidades.push({ sheetName: n, fieldLocation, estudio, rows });
+    });
+  }
+
+  if (!campoLocalidades.length) {
+    $('fileStatusCampo').innerHTML = '<span class="hl-bad">No se reconoció ninguna hoja con estructura de mapa (Rows/Surcos). Revisa el archivo.</span>';
+    return;
+  }
+
+  const picker = $('localidadPickerCampo');
+  picker.innerHTML = '';
+  campoLocalidades.forEach((loc, i) => {
+    const opt = document.createElement('option');
+    opt.value = String(i);
+    opt.textContent = loc.fieldLocation + (loc.estudio ? ' — ' + loc.estudio : '') + ' (' + loc.sheetName + ')';
+    picker.appendChild(opt);
+  });
+  $('localidadWrapCampo').style.display = 'block';
+  $('fileStatusCampo').innerHTML = '<span class="hl-ok">' + campoLocalidades.length + ' localidad(es) detectada(s).</span> Elige la localidad y presiona "Cargar mapa de esta localidad".';
+}
+
+$('btnCargarLocalidadCampo').addEventListener('click', () => {
+  const idx = parseInt($('localidadPickerCampo').value, 10);
+  const loc = campoLocalidades[idx];
+  if (!loc) return;
+  $('btnCargarLocalidadCampo').disabled = true;
+  cargarMapaCampo(loc).finally(() => { $('btnCargarLocalidadCampo').disabled = false; });
+});
+
+async function cargarMapaCampo(loc) {
+  const grid = parseGridMapaCampo(loc.rows);
+  if (!grid) {
+    $('fileStatusCampo').innerHTML = '<span class="hl-bad">No se pudo reconocer la cuadrícula de esta hoja.</span>';
+    return;
+  }
+
+  campoMapaIndex = new Map();
+  campoRegPorPlot = new Map();
+  campoOrdenEsperado = [];
+  campoPuntero = 0;
+  campoHistorial = [];
+  campoTieneGid = false;
+  document.querySelector('#histCampoTable tbody').innerHTML = '';
+
+  const wrap = $('gridWrapCampo');
+  const table = document.createElement('table');
+  const thead = document.createElement('thead');
+  const trh = document.createElement('tr');
+  trh.innerHTML = '<th></th>' + Array.from({length: grid.numColumnas}, (_, i) => '<th>' + (i+1) + '</th>').join('');
+  thead.appendChild(trh);
+  table.appendChild(thead);
+  const tbody = document.createElement('tbody');
+
+  grid.filas.forEach(fila => {
+    const tr = document.createElement('tr');
+    const tdLabel = document.createElement('td');
+    tdLabel.textContent = fila.label;
+    tdLabel.style.fontWeight = '700';
+    tr.appendChild(tdLabel);
+
+    fila.celdas.forEach(raw => {
+      const td = document.createElement('td');
+      const parsed = parseCeldaMapaCampo(raw);
+      if (!parsed) {
+        td.innerHTML = '&nbsp;';
+        tr.appendChild(td);
+        return;
+      }
+      if (parsed.tieneGid) campoTieneGid = true;
+      const codigo = String(parsed.plot).toUpperCase();
+      td.className = 'cell-campo pendiente';
+      td.innerHTML = 'Plot: ' + esc(parsed.plot) +
+        (parsed.plotNo ? '<br>Plot No: ' + esc(parsed.plotNo) : '') +
+        '<br>Entry: ' + esc(parsed.entry) +
+        (parsed.tieneGid ? '<br>GID: ' + esc(parsed.gid) : '') +
+        (parsed.rol ? '<br>' + esc(parsed.rol) : '');
+      td.dataset.plot = codigo;
+
+      // Un mismo Plot puede repetirse en varias columnas de Surco seguidas
+      // (celda fusionada en el Excel abarcando 2, 3 o 4 surcos -- el mismo
+      // material ocupa varias filas del terreno). Un solo escaneo cubre
+      // todo el bloque, así que reutilizamos el mismo registro y solo
+      // acumulamos sus <td> en vez de crear uno nuevo por columna.
+      let registro = campoRegPorPlot.get(codigo);
+      if (registro) {
+        registro.tds.push(td);
+      } else {
+        registro = { plot: parsed.plot, plotNo: parsed.plotNo, entry: parsed.entry, gid: parsed.gid, rol: parsed.rol,
+                      tieneGid: parsed.tieneGid, rangeLabel: fila.label, estado: 'pendiente', tds: [td] };
+        campoRegPorPlot.set(codigo, registro);
+        campoOrdenEsperado.push(codigo);
+      }
+
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  wrap.innerHTML = '';
+  wrap.appendChild(table);
+
+  campoOrdenEsperado.sort((a, b) => plotNumeroCampo(a) - plotNumeroCampo(b));
+
+  $('infoMapaCampo').style.display = 'block';
+  $('infoEstudioCampo').textContent = loc.estudio || '—';
+  $('infoLocalidadCampo').textContent = loc.fieldLocation || '—';
+  $('infoTipoCampo').textContent = campoTieneGid ? 'Backcross / Self (Plot + Entry + GID)' : 'Finca / Registro / Screening / Parent Testing (Plot + Entry)';
+  $('infoTotalCampo').textContent = campoOrdenEsperado.length;
+  $('summaryCampo').style.display = 'flex';
+  actualizarContadoresCampo();
+
+  // --- Resolver OBS_UNIT_ID vía BMS antes de habilitar el escaneo ---
+  // (una sola localidad/ambiente a la vez, para no cruzar Plots repetidos
+  // entre localidades distintas del mismo estudio)
+  $('scanCampo').disabled = true;
+  $('fileStatusCampo').innerHTML = '<span class="spinner-inline"></span> Conectando a BMS para resolver OBS UNIT de esta localidad...';
+
+  const ambiente = await buscarAmbienteCampoPorLocalidad(loc.estudio, loc.fieldLocation);
+  if (!ambiente) {
+    $('fileStatusCampo').innerHTML = '<span class="hl-bad">No se encontró en BMS el ambiente para "' + esc(loc.fieldLocation) + '". Revisa el diagnóstico (debugCampo).</span>';
+    return;
+  }
+  await cargarObsUnitCampoBMS(ambiente.studyDbId, campoTieneGid, ambiente.programDbId);
+
+  // campoMapaIndex es el índice de BÚSQUEDA al escanear: cada alias de
+  // OBS_UNIT_ID (dbId / name / PUI) de un Plot apunta al MISMO objeto
+  // `registro` que ya vive en campoRegPorPlot -- así, sin importar cuál de
+  // los 3 campos traiga impreso el sobre físico, el escaneo encuentra el
+  // registro correcto y actualiza su estado una sola vez.
+  let sinObs = 0;
+  campoOrdenEsperado.forEach(codigoPlot => {
+    const registro = campoRegPorPlot.get(codigoPlot);
+    const alias = campoObsIndex.get(codigoPlot);
+    if (!alias || !alias.length) { sinObs++; return; }
+    alias.forEach(a => campoMapaIndex.set(String(a).toUpperCase(), registro));
+  });
+
+  if (sinObs > 0) dbg('debugCampo', 'Advertencia: ' + sinObs + ' plot(s) del Excel no tuvieron OBS_UNIT_ID en BMS.');
+
+  $('scanCampo').disabled = false;
+  $('scanCampo').placeholder = 'Escanee el primer sobre';
+  $('subCampo').textContent = '';
+  $('verdictCampo').className = 'verdict';
+  $('verdictCampo').textContent = 'Mapa cargado. Escanee los sobres en orden.';
+  $('fileStatusCampo').innerHTML = '<span class="hl-ok">Listo.</span> ' + (campoOrdenEsperado.length - sinObs) + ' de ' + campoOrdenEsperado.length + ' plots con OBS UNIT resuelto.';
+  actualizarContadoresCampo();
+  $('scanCampo').focus();
+}
+
+function actualizarContadoresCampo() {
+  let ok = 0, alertas = 0;
+  campoRegPorPlot.forEach(r => {
+    if (r.estado === 'ok') ok++;
+    else if (r.estado !== 'pendiente') alertas++;
+  });
+  $('sTotalCampo').textContent = campoRegPorPlot.size;
+  $('sOkCampo').textContent = ok;
+  $('sPendCampo').textContent = campoRegPorPlot.size - ok - alertas;
+  $('sAlertCampo').textContent = alertas;
+}
+
+function pintarCeldaCampo(registro, estado) {
+  if (!registro || !registro.tds) return;
+  registro.tds.forEach(td => {
+    td.classList.remove('pendiente', 'ok', 'alerta');
+    td.classList.add(estado === 'ok' ? 'ok' : 'alerta');
+  });
+}
+
+function registrarHistorialCampo(codigo, reg, resultado) {
+  campoHistorial.unshift({
+    hora: new Date().toLocaleTimeString(),
+    codigo, plot: reg ? reg.plot : codigo, entry: reg ? reg.entry : '',
+    gid: reg ? reg.gid : '', rol: reg ? reg.rol : '', rango: reg ? reg.rangeLabel : '', resultado
+  });
+  const tb = document.querySelector('#histCampoTable tbody');
+  const h = campoHistorial[0];
+  const tr = document.createElement('tr');
+  const cls = h.resultado === 'OK' ? 'badge-true' : 'badge-false';
+  tr.innerHTML = '<td>' + h.hora + '</td><td class="mono">' + esc(h.codigo) + '</td>' +
+    '<td class="mono">' + esc(h.plot) + '</td><td>' + esc(h.entry || '-') + '</td>' +
+    '<td class="mono">' + esc(h.gid || '-') + '</td><td>' + esc(h.rol || '-') + '</td>' +
+    '<td>' + esc(h.rango || '-') + '</td>' +
+    '<td><span class="' + cls + '">' + esc(h.resultado) + '</span></td>';
+  tb.prepend(tr);
+}
+
+$('scanCampo').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const codigo = norm($('scanCampo').value).toUpperCase();
+  $('scanCampo').value = '';
+  if (!codigo) return;
+
+  if (!campoMapaIndex.size) {
+    $('subCampo').innerHTML = '<span class="hl-bad">Carga primero un mapa.</span>';
+    return;
+  }
+
+  const reg = campoMapaIndex.get(codigo);
+  if (!reg) {
+    $('verdictCampo').className = 'verdict false';
+    $('verdictCampo').innerHTML = 'NO ENCONTRADO <small>El código "' + esc(codigo) + '" no existe en el mapa cargado</small>';
+    registrarHistorialCampo(codigo, null, 'NO ENCONTRADO');
+    actualizarContadoresCampo();
+    dbg('debugCampo', 'Escaneado "' + codigo + '" -> no coincide con ninguno de los ' + campoMapaIndex.size + ' alias de OBS_UNIT_ID cargados para esta localidad.');
+    return;
+  }
+
+  if (reg.estado === 'ok') {
+    $('verdictCampo').className = 'verdict false';
+    $('verdictCampo').innerHTML = 'YA ESCANEADO <small>Plot ' + esc(reg.plot) + ' ya había sido verificado</small>';
+    registrarHistorialCampo(codigo, reg, 'DUPLICADO');
+    actualizarContadoresCampo();
+    return;
+  }
+
+  // El orden se compara por PLOT (no por el valor de OBS_UNIT_ID escaneado)
+  // ya que un mismo Plot puede reconocerse por 3 alias distintos.
+  const plotEsperado = campoOrdenEsperado[campoPuntero];
+  if (String(reg.plot).toUpperCase() === plotEsperado) {
+    reg.estado = 'ok';
+    pintarCeldaCampo(reg, 'ok');
+    campoPuntero++;
+    $('verdictCampo').className = 'verdict true';
+    $('verdictCampo').innerHTML = 'OK <small>Plot ' + esc(reg.plot) + ' &middot; Entry ' + esc(reg.entry) +
+      (reg.tieneGid ? ' &middot; GID ' + esc(reg.gid) : '') + (reg.rol ? ' &middot; ' + esc(reg.rol) : '') + '</small>';
+    registrarHistorialCampo(codigo, reg, 'OK');
+  } else {
+    reg.estado = 'fuera_de_orden';
+    pintarCeldaCampo(reg, 'alerta');
+    const regEsperado = campoRegPorPlot.get(plotEsperado);
+    $('verdictCampo').className = 'verdict false';
+    $('verdictCampo').innerHTML = 'NO COINCIDE <small>Se esperaba Plot ' + esc(regEsperado ? regEsperado.plot : plotEsperado) + ', se escaneó Plot ' + esc(reg.plot) + '</small>';
+    registrarHistorialCampo(codigo, reg, 'NO COINCIDE (orden)');
+  }
+  actualizarContadoresCampo();
+  $('scanCampo').focus();
+});
+
+$('btnReiniciarCampo').addEventListener('click', () => {
+  campoRegPorPlot.forEach(reg => {
+    reg.estado = 'pendiente';
+        if (reg.tds) reg.tds.forEach(td => { td.classList.remove('ok', 'alerta'); td.classList.add('pendiente'); });
+  });
+  campoPuntero = 0;
+  campoHistorial = [];
+  document.querySelector('#histCampoTable tbody').innerHTML = '';
+  $('verdictCampo').className = 'verdict';
+  $('verdictCampo').textContent = 'Reiniciado. Escanee los sobres en orden.';
+  actualizarContadoresCampo();
+});
+
+$('btnExportCampo').addEventListener('click', () => {
+  if (!campoHistorial.length) { alert('No hay historial para exportar.'); return; }
+  const headers = ['Hora','Código escaneado','Plot','Entry','GID','Rol','Rango/Faja','Resultado'];
+  const rows = [headers.join(',')];
+  campoHistorial.forEach(h => {
+    const vals = [h.hora, h.codigo, h.plot, h.entry, h.gid, h.rol, h.rango, h.resultado];
+    rows.push(vals.map(v => '"' + String(v||'').replace(/"/g,'""') + '"').join(','));
+  });
+  const csv = '\uFEFF' + rows.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'verificacion_campo_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+});
+
+/* =========================================================================
+   VERIFICACIÓN ENVÍO CE -> LAB  (Packing List)
+   ========================================================================= */
+
+let paqueteMeta = { experimento:'', fecha:'', totalDeclarado:null };
+let paqueteLista = [];          // [{no,obsUnitId,planta,tipo,sampleUuid,sampleCode,maz,gid,guid,estado,horaRecibido,veces,tr}]
+let paqueteIndex = new Map();   // OBS_UNIT_ID exacto -> item
+let paqueteIndexUpper = new Map(); // fallback may/min (solo si es único) -> item
+let paqueteHistorial = [];
+let html5QrCodePaquete = null;
+
+$('fileInputPaquete').addEventListener('change', (ev) => {
+  const file = ev.target.files[0];
+  if (!file) return;
+  $('fileStatusPaquete').innerHTML = 'Leyendo archivo&hellip;';
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true });
+      procesarPackingList(rows);
+    } catch (err) {
+      $('fileStatusPaquete').innerHTML = '<span class="hl-bad">Error leyendo el archivo: ' + esc(err.message || err) + '</span>';
+    }
+  };
+  reader.onerror = () => { $('fileStatusPaquete').innerHTML = '<span class="hl-bad">No se pudo leer el archivo.</span>'; };
+  reader.readAsArrayBuffer(file);
+});
+
+function procesarPackingList(rows) {
+  let headerIdx = -1, colObs = -1;
+  const maxScan = Math.min(rows.length, 60);
+  for (let r = 0; r < maxScan; r++) {
+    const row = rows[r] || [];
+    const idx = row.findIndex(c => key(c) === 'OBS_UNIT_ID');
+    if (idx !== -1) { headerIdx = r; colObs = idx; break; }
+  }
+  if (headerIdx === -1) {
+    $('fileStatusPaquete').innerHTML = '<span class="hl-bad">No se encontró la columna OBS_UNIT_ID en este archivo.</span>';
+    return;
+  }
+
+  const header = rows[headerIdx] || [];
+  let colNo = -1, colPlanta = -1, colType = -1, colUuid = -1, colCode = -1, colMaz = -1, colGid = -1, colGuid = -1;
+  header.forEach((h, i) => {
+    const k = key(h);
+    if (k === 'NO.' || k === 'NO') colNo = i;
+    else if (k === 'OBS_UNIT_ID') colObs = i;
+    else if (k === 'PLANTA') colPlanta = i;
+    else if (k === 'TYPE') colType = i;
+    else if (k === 'SAMPLE_UUID') colUuid = i;
+    else if (k === 'SAMPLE_CODE') colCode = i;
+    else if (k.indexOf('MAZ') !== -1) colMaz = i;
+    else if (k === 'GID_GENERADO') colGid = i;
+    else if (k === 'GUID_GENERADO') colGuid = i;
+  });
+
+  // Metadatos (Experimento/Proyecto, Total de muestras, Fecha) en las filas antes del encabezado
+  let experimento = '', totalDeclarado = null, fecha = '';
+  for (let r = 0; r < headerIdx; r++) {
+    const row = rows[r] || [];
+    for (let c = 0; c < row.length; c++) {
+      const k = key(row[c]);
+      if (!k) continue;
+      if (k.indexOf('EXPERIMENTO') !== -1 && !experimento) {
+        for (let c2 = c + 1; c2 < row.length; c2++) { if (norm(row[c2]) !== '') { experimento = norm(row[c2]); break; } }
+      } else if (k.indexOf('TOTAL DE MUESTRAS') !== -1 && totalDeclarado === null) {
+        for (let c2 = c + 1; c2 < row.length; c2++) { if (norm(row[c2]) !== '') { totalDeclarado = norm(row[c2]); break; } }
+      } else if (k.indexOf('FECHA') !== -1 && !fecha) {
+        for (let c2 = c + 1; c2 < row.length; c2++) { if (norm(row[c2]) !== '') { fecha = norm(row[c2]); break; } }
+      }
+    }
+  }
+
+  const lista = [];
+  for (let r = headerIdx + 1; r < rows.length; r++) {
+    const row = rows[r] || [];
+    const obsId = norm(row[colObs]);
+    const noVal = colNo !== -1 ? norm(row[colNo]) : '';
+    if (!obsId && !noVal) break; // primera fila totalmente vacía = fin de los datos
+    if (!obsId) continue;
+    lista.push({
+      no: noVal,
+      obsUnitId: obsId,
+      planta: colPlanta !== -1 ? norm(row[colPlanta]) : '',
+      tipo: colType !== -1 ? norm(row[colType]) : '',
+      sampleUuid: colUuid !== -1 ? norm(row[colUuid]) : '',
+      sampleCode: colCode !== -1 ? norm(row[colCode]) : '',
+      maz: colMaz !== -1 ? norm(row[colMaz]) : '',
+      gid: colGid !== -1 ? norm(row[colGid]) : '',
+      guid: colGuid !== -1 ? norm(row[colGuid]) : '',
+      estado: 'pendiente',
+      horaRecibido: null,
+      veces: 0,
+      tr: null
+    });
+  }
+
+  if (!lista.length) {
+    $('fileStatusPaquete').innerHTML = '<span class="hl-bad">Se encontró el encabezado pero no hay filas de datos debajo.</span>';
+    return;
+  }
+
+  paqueteLista = lista;
+  paqueteIndex = new Map();
+  const upperCount = new Map();
+  lista.forEach(item => {
+    paqueteIndex.set(item.obsUnitId, item); // comparación exacta (el OBS_UNIT_ID distingue mayúsc/minúsc.)
+    const u = item.obsUnitId.toUpperCase();
+    upperCount.set(u, (upperCount.get(u) || 0) + 1);
+  });
+  paqueteIndexUpper = new Map();
+  lista.forEach(item => {
+    const u = item.obsUnitId.toUpperCase();
+    if (upperCount.get(u) === 1) paqueteIndexUpper.set(u, item); // solo si es único, para evitar falsos positivos
+  });
+
+  paqueteMeta = { experimento, fecha, totalDeclarado };
+  paqueteHistorial = [];
+
+  $('fileStatusPaquete').innerHTML = '<span class="hl-ok">Cargado: ' + lista.length + ' muestra(s).</span>';
+  $('infoPaquete').style.display = '';
+  $('infoExperimentoPaquete').textContent = experimento || '—';
+  $('infoFechaPaquete').textContent = fecha || '—';
+  $('infoTotalPaquete').textContent = (totalDeclarado !== null ? totalDeclarado + ' declaradas · ' : '') + lista.length + ' filas leídas';
+
+  $('scanPaquete').disabled = false;
+  $('scanPaquete').placeholder = 'Escanee o escriba el OBS_UNIT_ID del sobre';
+  $('btnIniciarCamaraPaquete').disabled = false;
+  $('summaryPaquete').style.display = '';
+
+  renderTablaPaquete();
+  renderHistorialPaquete();
+  actualizarContadoresPaquete();
+  $('verdictPaquete').className = 'verdict';
+  $('verdictPaquete').textContent = 'Listo. Escanee el primer sobre.';
+  $('scanPaquete').focus();
+}
+
+$('scanPaquete').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const code = norm($('scanPaquete').value);
+  if (!code) return;
+  procesarEscaneoPaquete(code);
+  $('scanPaquete').value = '';
+  $('scanPaquete').focus();
+});
+
+function procesarEscaneoPaquete(codigoRaw) {
+  const codigo = norm(codigoRaw);
+  if (!codigo) return;
+  if (!paqueteLista.length) {
+    $('subPaquete').innerHTML = '<span class="hl-bad">Cargue primero el Packing List (Excel).</span>';
+    return;
+  }
+
+  const hora = new Date().toLocaleTimeString();
+  let item = paqueteIndex.get(codigo);
+  let aprox = false;
+  if (!item) {
+    item = paqueteIndexUpper.get(codigo.toUpperCase());
+    if (item) aprox = true;
+  }
+
+  if (!item) {
+    $('verdictPaquete').className = 'verdict false';
+    $('verdictPaquete').innerHTML = 'NO ENCONTRADO <small>' + esc(codigo) + ' no está en este Packing List</small>';
+    $('subPaquete').innerHTML = '<span class="hl-bad">No coincide con ningún OBS_UNIT_ID del archivo.</span>';
+    paqueteHistorial.unshift({ hora, codigo, planta: '', gid: '', resultado: 'NO ENCONTRADO' });
+    renderHistorialPaquete();
+    actualizarContadoresPaquete();
+    return;
+  }
+
+  if (item.estado === 'recibido') {
+    item.veces++;
+    $('verdictPaquete').className = 'verdict false';
+    $('verdictPaquete').innerHTML = 'YA REGISTRADO <small>' + esc(item.obsUnitId) + ' recibido a las ' + esc(item.horaRecibido) + ' &middot; escaneado ' + item.veces + ' veces</small>';
+    $('subPaquete').innerHTML = '<span class="hl-bad">Duplicado &mdash; este sobre ya se había escaneado.</span>';
+    paqueteHistorial.unshift({ hora, codigo, planta: item.planta, gid: item.gid, resultado: 'DUPLICADO' });
+    renderHistorialPaquete();
+    actualizarContadoresPaquete();
+    return;
+  }
+
+  item.estado = 'recibido';
+  item.horaRecibido = hora;
+  item.veces = 1;
+  $('verdictPaquete').className = 'verdict true';
+  $('verdictPaquete').innerHTML = 'OK <small>' + esc(item.obsUnitId) +
+    (item.planta ? ' &middot; Planta ' + esc(item.planta) : '') +
+    (item.gid ? ' &middot; GID ' + esc(item.gid) : '') +
+    (aprox ? ' &middot; (coincide ignorando mayúsc/minúsc.)' : '') + '</small>';
+  $('subPaquete').innerHTML = '<span class="hl-ok">Recibido y verificado contra el Packing List.</span>';
+  paqueteHistorial.unshift({ hora, codigo, planta: item.planta, gid: item.gid, resultado: aprox ? 'OK (may/min)' : 'OK' });
+  pintarFilaPaquete(item);
+  renderHistorialPaquete();
+  actualizarContadoresPaquete();
+}
+
+function badgePaquete(item) {
+  return item.estado === 'recibido' ? '<span class="badge-true">Recibido</span>' : '<span class="badge-false">Pendiente</span>';
+}
+
+function renderTablaPaquete() {
+  const tbody = document.querySelector('#tablaPaqueteTable tbody');
+  tbody.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  paqueteLista.forEach(item => {
+    const tr = document.createElement('tr');
+    tr.dataset.estado = item.estado;
+    tr.innerHTML = '<td>' + esc(item.no) + '</td><td class="mono">' + esc(item.obsUnitId) + '</td>' +
+      '<td>' + esc(item.planta) + '</td><td class="mono">' + esc(item.gid) + '</td>' +
+      '<td class="estadoCell">' + badgePaquete(item) + '</td><td class="horaCell">' + esc(item.horaRecibido || '') + '</td>';
+    item.tr = tr;
+    frag.appendChild(tr);
+  });
+  tbody.appendChild(frag);
+  aplicarFiltroPaquete();
+}
+
+function pintarFilaPaquete(item) {
+  if (!item.tr) return;
+  item.tr.dataset.estado = item.estado;
+  item.tr.querySelector('.estadoCell').innerHTML = badgePaquete(item);
+  item.tr.querySelector('.horaCell').textContent = item.horaRecibido || '';
+  aplicarFiltroPaquete();
+}
+
+function aplicarFiltroPaquete() {
+  const soloPend = $('chkSoloPendientesPaquete').checked;
+  document.querySelectorAll('#tablaPaqueteTable tbody tr').forEach(tr => {
+    tr.style.display = (soloPend && tr.dataset.estado === 'recibido') ? 'none' : '';
+  });
+}
+
+function renderHistorialPaquete() {
+  const tbody = document.querySelector('#histPaqueteTable tbody');
+  tbody.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  paqueteHistorial.slice(0, 300).forEach(h => {
+    const tr = document.createElement('tr');
+    const cls = h.resultado.indexOf('OK') === 0 ? 'badge-true' : 'badge-false';
+    tr.innerHTML = '<td>' + esc(h.hora) + '</td><td class="mono">' + esc(h.codigo) + '</td>' +
+      '<td>' + esc(h.planta) + '</td><td class="mono">' + esc(h.gid) + '</td>' +
+      '<td><span class="' + cls + '">' + esc(h.resultado) + '</span></td>';
+    frag.appendChild(tr);
+  });
+  tbody.appendChild(frag);
+}
+
+function actualizarContadoresPaquete() {
+  const total = paqueteLista.length;
+  const recibidos = paqueteLista.filter(i => i.estado === 'recibido').length;
+  const pendientes = total - recibidos;
+  const noEncontrados = paqueteHistorial.filter(h => h.resultado === 'NO ENCONTRADO').length;
+  $('sTotalPaquete').textContent = total;
+  $('sOkPaquete').textContent = recibidos;
+  $('sPendPaquete').textContent = pendientes;
+  $('sBadPaquete').textContent = noEncontrados;
+}
+
+$('btnReiniciarPaquete').addEventListener('click', () => {
+  if (!paqueteLista.length) return;
+  if (!confirm('¿Reiniciar todos los estados a Pendiente y borrar el historial de esta sesión?')) return;
+  paqueteLista.forEach(item => { item.estado = 'pendiente'; item.horaRecibido = null; item.veces = 0; });
+  paqueteHistorial = [];
+  renderTablaPaquete();
+  renderHistorialPaquete();
+  actualizarContadoresPaquete();
+  $('verdictPaquete').className = 'verdict';
+  $('verdictPaquete').textContent = 'Reiniciado. Escanee los sobres.';
+});
+
+$('btnExportPaquete').addEventListener('click', () => {
+  if (!paqueteLista.length) { alert('Cargue el Packing List primero.'); return; }
+  const headers = ['No.', 'OBS_UNIT_ID', 'PLANTA', 'GID_GENERADO', 'Estado', 'Hora recibido', 'Veces escaneado'];
+  const rows = [headers.join(',')];
+  paqueteLista.forEach(item => {
+    const vals = [item.no, item.obsUnitId, item.planta, item.gid, item.estado === 'recibido' ? 'RECIBIDO' : 'PENDIENTE', item.horaRecibido || '', item.veces || 0];
+    rows.push(vals.map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"').join(','));
+  });
+  const extras = paqueteHistorial.filter(h => h.resultado === 'NO ENCONTRADO');
+  if (extras.length) {
+    rows.push('');
+    rows.push('"CÓDIGOS ESCANEADOS QUE NO ESTÁN EN EL ARCHIVO"');
+    rows.push(['Hora', 'Código'].join(','));
+    extras.forEach(h => rows.push('"' + h.hora + '","' + String(h.codigo).replace(/"/g, '""') + '"'));
+  }
+  const csv = '\uFEFF' + rows.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'verificacion_envio_' + (paqueteMeta.experimento || 'CE-LAB').replace(/[^a-z0-9]+/gi, '_') + '_' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+});
+
+async function iniciarEscaneoPaquete() {
+  if (!paqueteLista.length) {
+    $('subPaquete').innerHTML = '<span class="hl-bad">Cargue primero el Packing List.</span>';
+    return;
+  }
+  $('btnIniciarCamaraPaquete').style.display = 'none';
+  $('btnDetenerCamaraPaquete').style.display = 'inline-block';
+  $('subPaquete').innerHTML = 'Apunta la cámara al código del sobre...';
+  html5QrCodePaquete = new Html5Qrcode('readerPaquete');
+  try {
+    await html5QrCodePaquete.start(
+      { facingMode: 'environment' },
+      {
+        fps: 10, qrbox: 250,
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.CODE_93, Html5QrcodeSupportedFormats.QR_CODE
+        ]
+      },
+      (decodedText) => {
+        procesarEscaneoPaquete(String(decodedText).trim());
+        detenerEscaneoPaquete(false);
+      }
+    );
+  } catch (e) {
+    $('subPaquete').innerHTML = '<span class="hl-bad">No se pudo iniciar la cámara: ' + esc((e && (e.message || e.name)) || 'error desconocido') + '</span>';
+    $('btnIniciarCamaraPaquete').style.display = 'inline-block';
+    $('btnDetenerCamaraPaquete').style.display = 'none';
+  }
+}
+
+async function detenerEscaneoPaquete(manual) {
+  if (html5QrCodePaquete) {
+    try { await html5QrCodePaquete.stop(); html5QrCodePaquete.clear(); } catch (e) {}
+    html5QrCodePaquete = null;
+  }
+  $('btnIniciarCamaraPaquete').style.display = 'inline-block';
+  $('btnDetenerCamaraPaquete').style.display = 'none';
+}
+
+/* =========================================================================
+   ASIGNAR LOT_UID POR GID  (sobre de cosecha solo trae el GID impreso)
+   Reutiliza lotesPorGid, construido en indexarLote() a partir del mismo
+   catálogo que ya carga "Cargar lotes desde BMS" -- no hace llamadas nuevas.
+   ========================================================================= */
+
+let historialLote = [];
+let pendienteMultiLote = null; // { gid, lotes, reg } mientras se espera que el usuario elija
+let html5QrCodeLote = null;
+
+function disponibleLoteTexto(lote) {
+  if (!lote) return '';
+  const cant = Math.round((Number(lote.peso) || 0) * 100) / 100;
+  const unidadTxt = lote.unidad ? ' ' + lote.unidad : '';
+  return lote.disponible ? (cant + unidadTxt) : ('0' + unidadTxt + ' (sin existencia/cerrado)');
+}
+
+$('scanLote').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const code = norm($('scanLote').value);
+  if (!code) return;
+  procesarEscaneoLote(code);
+  $('scanLote').value = '';
+  $('scanLote').focus();
+});
+
+function procesarEscaneoLote(codigoRaw) {
+  const gid = norm(codigoRaw);
+  if (!gid) return;
+  if (!lotesPorGid.size) {
+    $('subLote').innerHTML = '<span class="hl-bad">Carga primero el catálogo de lotes desde BMS (arriba).</span>';
+    return;
+  }
+  ocultarMultiLote();
+  resetearEtiqueta2();
+  const lotes = lotesPorGid.get(gid);
+  const hora = new Date().toLocaleTimeString();
+
+  if (!lotes || !lotes.length) {
+    pintarVerdictoLote('', 'Verificando GID ' + esc(gid) + ' en BMS&hellip;', 'un momento');
+    $('subLote').innerHTML = '';
+    obtenerGermplasmaDetalle(gid).then(detalle => {
+      if (detalle) {
+        pintarVerdictoLote('false', 'SIN LOTE TODAVÍA', 'GID ' + esc(gid) + ' existe en BMS pero aún no tiene lote creado');
+        $('subLote').innerHTML = '<span class="hl-bad">Esto es normal si acaban de generar el GID: el lote lo crea otra persona más adelante. Vuelve a intentar cuando ya te confirmen que lo crearon (y recarga el catálogo de lotes arriba).</span>';
+        agregarHistorialLote({ hora, gid, lotUID: '', ubicacion: '', disponible: '', obsEtq2: '', resultado: 'SIN LOTE (GID existe)' });
+        activarEtiqueta2(gid, detalle);
+      } else {
+        pintarVerdictoLote('false', 'GID NO ENCONTRADO', esc(gid) + ' no existe en BMS');
+        $('subLote').innerHTML = '<span class="hl-bad">Revisa la etiqueta / el código escaneado &mdash; este GID no está registrado en BMS.</span>';
+        agregarHistorialLote({ hora, gid, lotUID: '', ubicacion: '', disponible: '', obsEtq2: '', resultado: 'NO ENCONTRADO' });
+      }
+    }).catch(() => {
+      pintarVerdictoLote('false', 'NO SE PUDO VERIFICAR', 'GID ' + esc(gid) + ' &mdash; no se encontró lote y falló la consulta a BMS');
+      $('subLote').innerHTML = '<span class="hl-bad">Revisa la conexión a BMS e intenta de nuevo.</span>';
+      agregarHistorialLote({ hora, gid, lotUID: '', ubicacion: '', disponible: '', obsEtq2: '', resultado: 'ERROR DE CONSULTA' });
+    });
+    return;
+  }
+
+  if (lotes.length === 1) {
+    const reg = { hora, gid, lotUID: '', ubicacion: '', disponible: '', obsEtq2: '', resultado: '' };
+    resolverLote(gid, lotes[0], reg, false);
+    agregarHistorialLote(reg);
+    obtenerGermplasmaDetalle(gid).then(detalle => activarEtiqueta2(gid, detalle));
+    return;
+  }
+
+  mostrarMultiLote(gid, lotes, hora);
+}
+
+function resolverLote(gid, lote, reg, eraMultiple) {
+  pintarVerdictoLote('true', 'LOT_UID: <span class="mono">' + esc(lote.lotUID) + '</span>',
+    'GID ' + esc(gid) +
+    (lote.ubicacion ? ' &middot; ' + esc(lote.ubicacion) : '') +
+    (lote.anio ? ' &middot; ' + esc(lote.anio) : '') +
+    ' &middot; Disponible: ' + esc(disponibleLoteTexto(lote)));
+  $('subLote').innerHTML = '<span class="hl-ok">Anota este LOT_UID en el sobre.</span> ' +
+    '<button class="act" style="margin-left:8px" onclick="copiarLoteUID(\'' + String(lote.lotUID).replace(/'/g, "\\'") + '\')">Copiar</button>';
+  reg.lotUID = lote.lotUID;
+  reg.ubicacion = lote.ubicacion;
+  reg.disponible = disponibleLoteTexto(lote);
+  reg.resultado = eraMultiple ? 'RESUELTO (elegido)' : 'RESUELTO';
+}
+
+function pintarVerdictoLote(clase, titulo, detalle) {
+  $('verdictLote').className = 'verdict ' + clase;
+  $('verdictLote').innerHTML = titulo + ' <small>' + detalle + '</small>';
+}
+
+function mostrarMultiLote(gid, lotes, hora) {
+  pintarVerdictoLote('', 'GID ' + esc(gid) + ' tiene ' + lotes.length + ' lotes', 'elige cuál usar abajo');
+  $('subLote').innerHTML = '';
+  const ordenados = lotes.slice().sort((a, b) => (b.disponible ? 1 : 0) - (a.disponible ? 1 : 0));
+  const sugerido = ordenados[0];
+  const html = ordenados.map(l => {
+    const esSugerido = (l === sugerido);
+    return '<div class="kv" style="padding:8px 0;border-bottom:1px solid var(--line)">' +
+      '<b>LOT_UID</b><span class="mono">' + esc(l.lotUID) + (esSugerido ? ' <span class="lock-tag" style="background:var(--accent)">SUGERIDO</span>' : '') + '</span>' +
+      '<b>Ubicación</b><span>' + esc(l.ubicacion || '—') + '</span>' +
+      '<b>Disponible</b><span>' + esc(disponibleLoteTexto(l)) + '</span>' +
+      '<b>Año</b><span>' + esc(l.anio || '—') + '</span>' +
+      '<b></b><span><button class="act" onclick="elegirLote(\'' + String(gid).replace(/'/g, "\\'") + '\',\'' + String(l.lotUID).replace(/'/g, "\\'") + '\')">Usar este LOT_UID</button></span>' +
+      '</div>';
+  }).join('');
+  $('multiLoteLista').innerHTML = html;
+  $('multiLoteWrap').style.display = '';
+  const reg = { hora, gid, lotUID: '', ubicacion: '', disponible: '', obsEtq2: '', resultado: 'VARIOS LOTES (pendiente elegir)' };
+  agregarHistorialLote(reg);
+  pendienteMultiLote = { gid, lotes, reg };
+}
+
+function elegirLote(gid, lotUID) {
+  if (!pendienteMultiLote || pendienteMultiLote.gid !== gid) return;
+  const lote = pendienteMultiLote.lotes.find(l => l.lotUID === lotUID);
+  const reg = pendienteMultiLote.reg;
+  ocultarMultiLote();
+  if (!lote) return;
+  resolverLote(gid, lote, reg, true);
+  renderHistorialLote();
+  actualizarContadoresLote();
+  obtenerGermplasmaDetalle(gid).then(detalle => activarEtiqueta2(gid, detalle));
+}
+
+function ocultarMultiLote() {
+  $('multiLoteWrap').style.display = 'none';
+  $('multiLoteLista').innerHTML = '';
+  pendienteMultiLote = null;
+}
+
+function copiarLoteUID(uid) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(uid).catch(() => {});
+  }
+}
+
+function spanResultadoLote(resultado) {
+  if (resultado.indexOf('RESUELTO') === 0 || resultado === 'COINCIDE ORIGEN') return '<span class="badge-true">' + esc(resultado) + '</span>';
+  if (resultado.indexOf('VARIOS') === 0 || resultado.indexOf('SIN LOTE') === 0) return '<span style="background:var(--amberbg);color:var(--amber);padding:2px 8px;border-radius:10px;font-weight:700;">' + esc(resultado) + '</span>';
+  return '<span class="badge-false">' + esc(resultado) + '</span>';
+}
+
+function agregarHistorialLote(reg) {
+  historialLote.unshift(reg);
+  renderHistorialLote();
+  actualizarContadoresLote();
+}
+
+function renderHistorialLote() {
+  const tbody = document.querySelector('#histLoteTable tbody');
+  tbody.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  historialLote.slice(0, 300).forEach(h => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + esc(h.hora) + '</td><td class="mono">' + esc(h.gid) + '</td>' +
+      '<td class="mono">' + esc(h.lotUID) + '</td><td>' + esc(h.ubicacion) + '</td>' +
+      '<td>' + esc(h.disponible) + '</td><td class="mono">' + esc(h.obsEtq2 || '') + '</td>' +
+      '<td>' + spanResultadoLote(h.resultado) + '</td>';
+    frag.appendChild(tr);
+  });
+  tbody.appendChild(frag);
+}
+
+function actualizarContadoresLote() {
+  const total = historialLote.length;
+  const resueltos = historialLote.filter(h => h.resultado.indexOf('RESUELTO') === 0).length;
+  const sinLote = historialLote.filter(h => h.resultado.indexOf('SIN LOTE') === 0).length;
+  const multi = historialLote.filter(h => h.resultado.indexOf('VARIOS') === 0).length;
+  const noEncontrado = historialLote.filter(h => h.resultado === 'NO ENCONTRADO' || h.resultado === 'ERROR DE CONSULTA').length;
+  $('sTotalLote').textContent = total;
+  $('sOkLote').textContent = resueltos;
+  $('sSinLoteLote').textContent = sinLote;
+  $('sMultiLote').textContent = multi;
+  $('sBadLote').textContent = noEncontrado;
+  $('summaryLote').style.display = total ? '' : 'none';
+}
+
+/* ---- Etiqueta 2: OBS_UNIT_ID del padre, verificado contra el origen del
+   GID de la Etiqueta 1 (germplasmOrigins), sin necesidad de cargar vivero ---- */
+
+let etiqueta2Estado = null; // { gid, origen } mientras hay una Etiqueta 1 activa con origen conocido
+
+function resetearEtiqueta2() {
+  etiqueta2Estado = null;
+  $('scanEtiqueta2').value = '';
+  $('scanEtiqueta2').disabled = true;
+  $('scanEtiqueta2').placeholder = 'Primero escanee la Etiqueta 1 (GID)';
+  $('subEtiqueta2').innerHTML = '';
+  $('origenEsperado').style.display = 'none';
+  $('origenEsperado').innerHTML = '';
+  $('verdictEtiqueta2').style.display = 'none';
+  $('verdictEtiqueta2').className = 'verdict';
+  $('verdictEtiqueta2').innerHTML = '';
+}
+
+function activarEtiqueta2(gid, detalle) {
+  const origen = extraerOrigenGermplasma(detalle);
+  if (!origen || !origen.origins.length) {
+    $('origenEsperado').style.display = '';
+    $('origenEsperado').innerHTML = '<span class="hl-bad">Este GID no tiene "Origen del Germoplasma" registrado en BMS &mdash; no se puede verificar la Etiqueta 2 para este GID.</span>';
+    $('scanEtiqueta2').disabled = true;
+    $('scanEtiqueta2').placeholder = 'Este GID no tiene origen registrado';
+    return;
+  }
+  const padreGid = (origen.gpid1 && origen.gpid1 === origen.gpid2) ? origen.gpid1 : [origen.gpid1, origen.gpid2].filter(Boolean).join(' / ');
+  const listaObs = origen.origins.map(o => esc(o.observationUnitId) + (o.progenitorType ? ' (' + esc(o.progenitorType) + ')' : '')).join(', ');
+  $('origenEsperado').style.display = '';
+  $('origenEsperado').innerHTML = '<div class="kv" style="padding:8px 0;border-top:1px solid var(--line)">' +
+    '<b>GID de origen (padre)</b><span class="mono">' + esc(padreGid || '—') + '</span>' +
+    '<b>Estudio</b><span>' + esc(origen.origins[0].studyName || '—') + '</span>' +
+    '<b>OBS_UNIT_ID esperado</b><span class="mono">' + listaObs + '</span>' +
+    '</div>';
+  etiqueta2Estado = { gid, origen };
+  $('scanEtiqueta2').disabled = false;
+  $('scanEtiqueta2').placeholder = 'Escanee la Etiqueta 2 (OBS_UNIT_ID del padre)';
+  $('scanEtiqueta2').focus();
+}
+
+$('scanEtiqueta2').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const code = norm($('scanEtiqueta2').value);
+  if (!code) return;
+  procesarEscaneoEtiqueta2(code);
+  $('scanEtiqueta2').value = '';
+  $('scanEtiqueta2').focus();
+});
+
+function procesarEscaneoEtiqueta2(codigoRaw) {
+  const codigo = norm(codigoRaw);
+  if (!codigo) return;
+  if (!etiqueta2Estado) {
+    $('subEtiqueta2').innerHTML = '<span class="hl-bad">Primero escanee la Etiqueta 1 (GID).</span>';
+    return;
+  }
+  const { gid, origen } = etiqueta2Estado;
+  const hora = new Date().toLocaleTimeString();
+  let match = origen.origins.find(o => o.observationUnitId === codigo);
+  let aprox = false;
+  if (!match) {
+    match = origen.origins.find(o => o.observationUnitId.toUpperCase() === codigo.toUpperCase());
+    aprox = !!match;
+  }
+
+  $('verdictEtiqueta2').style.display = '';
+  if (match) {
+    $('verdictEtiqueta2').className = 'verdict true';
+    $('verdictEtiqueta2').innerHTML = 'COINCIDE <small>La Etiqueta 2 corresponde al origen de GID ' + esc(gid) +
+      (match.progenitorType ? ' &middot; ' + esc(match.progenitorType) : '') +
+      (aprox ? ' &middot; (coincide ignorando mayúsc/minúsc.)' : '') + '</small>';
+    $('subEtiqueta2').innerHTML = '<span class="hl-ok">GID padre: ' + esc(origen.gpid1 || '—') + '</span>';
+    agregarHistorialLote({ hora, gid, lotUID: '', ubicacion: '', disponible: '', obsEtq2: codigo, resultado: 'COINCIDE ORIGEN' });
+  } else {
+    $('verdictEtiqueta2').className = 'verdict false';
+    $('verdictEtiqueta2').innerHTML = 'NO COINCIDE <small>' + esc(codigo) + ' no corresponde al origen registrado de GID ' + esc(gid) + '</small>';
+    $('subEtiqueta2').innerHTML = '<span class="hl-bad">Revisa que sea el sobre correcto.</span>';
+    agregarHistorialLote({ hora, gid, lotUID: '', ubicacion: '', disponible: '', obsEtq2: codigo, resultado: 'NO COINCIDE ORIGEN' });
+  }
+}
+
+$('btnLimpiarLote').addEventListener('click', () => {
+  historialLote = [];
+  ocultarMultiLote();
+  resetearEtiqueta2();
+  renderHistorialLote();
+  actualizarContadoresLote();
+  $('verdictLote').className = 'verdict';
+  $('verdictLote').textContent = 'Historial limpio. Escanee el siguiente sobre.';
+  $('subLote').innerHTML = '';
+});
+
+$('btnExportLote').addEventListener('click', () => {
+  if (!historialLote.length) { alert('No hay historial para exportar.'); return; }
+  const headers = ['Hora', 'GID escaneado', 'LOT_UID', 'Ubicación', 'Disponible', 'OBS Etiqueta 2', 'Resultado'];
+  const rows = [headers.join(',')];
+  historialLote.forEach(h => {
+    const vals = [h.hora, h.gid, h.lotUID, h.ubicacion, h.disponible, h.obsEtq2, h.resultado];
+    rows.push(vals.map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"').join(','));
+  });
+  const csv = '\uFEFF' + rows.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'asignacion_lotuid_' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+});
+
+async function iniciarEscaneoLote() {
+  if (!lotesPorGid.size) {
+    $('subLote').innerHTML = '<span class="hl-bad">Carga primero el catálogo de lotes desde BMS.</span>';
+    return;
+  }
+  $('btnIniciarCamaraLote').style.display = 'none';
+  $('btnDetenerCamaraLote').style.display = 'inline-block';
+  $('subLote').innerHTML = 'Apunta la cámara al código del sobre...';
+  html5QrCodeLote = new Html5Qrcode('readerLote');
+  try {
+    await html5QrCodeLote.start(
+      { facingMode: 'environment' },
+      {
+        fps: 10, qrbox: 250,
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.CODE_93, Html5QrcodeSupportedFormats.QR_CODE
+        ]
+      },
+      (decodedText) => {
+        procesarEscaneoLote(String(decodedText).trim());
+        detenerEscaneoLote(false);
+      }
+    );
+  } catch (e) {
+    $('subLote').innerHTML = '<span class="hl-bad">No se pudo iniciar la cámara: ' + esc((e && (e.message || e.name)) || 'error desconocido') + '</span>';
+    $('btnIniciarCamaraLote').style.display = 'inline-block';
+    $('btnDetenerCamaraLote').style.display = 'none';
+  }
+}
+
+async function detenerEscaneoLote(manual) {
+  if (html5QrCodeLote) {
+    try { await html5QrCodeLote.stop(); html5QrCodeLote.clear(); } catch (e) {}
+    html5QrCodeLote = null;
+  }
+  $('btnIniciarCamaraLote').style.display = 'inline-block';
+  $('btnDetenerCamaraLote').style.display = 'none';
+}
+
 </script>
 </body>
 </html>
